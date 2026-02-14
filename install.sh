@@ -43,8 +43,11 @@ case $platform in
 'Darwin arm64')
   target=darwin-arm64
   ;;
-'Linux x86_64' | *)
+'Linux x86_64')
   target=linux-amd64
+  ;;
+*)
+  error "Unsupported platform: $platform. Rime CLI supports macOS (x86_64, arm64) and Linux (x86_64)."
   ;;
 esac
 
