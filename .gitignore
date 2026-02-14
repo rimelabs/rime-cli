@@ -1,0 +1,13 @@
+# Binaries
+rime
+*.exe
+*.tar.gz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
