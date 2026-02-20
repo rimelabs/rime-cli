@@ -45,6 +45,92 @@ func TestTTS_Success(t *testing.T) {
 	}
 }
 
+func TestNewClientWithOptions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Api-Key custom-key" {
+			t.Errorf("Expected 'Api-Key custom-key', got %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("audio"))
+	}))
+	defer server.Close()
+
+	client := NewClientWithOptions(ClientOptions{
+		APIKey:           "custom-key",
+		APIURL:           server.URL,
+		AuthHeaderPrefix: "Api-Key",
+		Version:          "1.0.0",
+	})
+
+	opts := &TTSOptions{
+		Speaker: "astra",
+		ModelID: "arcana",
+	}
+	_, err := client.TTS("test", opts)
+	if err != nil {
+		t.Fatalf("TTS failed: %v", err)
+	}
+}
+
+func TestNewClientWithOptions_NoAuth(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Errorf("Expected no Authorization header, got %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("audio"))
+	}))
+	defer server.Close()
+
+	client := NewClientWithOptions(ClientOptions{
+		APIKey:           "",
+		APIURL:           server.URL,
+		AuthHeaderPrefix: "Bearer",
+		Version:          "1.0.0",
+	})
+
+	opts := &TTSOptions{
+		Speaker: "astra",
+		ModelID: "arcana",
+	}
+	_, err := client.TTS("test", opts)
+	if err != nil {
+		t.Fatalf("TTS failed: %v", err)
+	}
+}
+
+func TestNewClientWithOptions_EmptyPrefix(t *testing.T) {
+	os.Unsetenv("RIME_AUTH_HEADER_PREFIX")
+	defer os.Unsetenv("RIME_AUTH_HEADER_PREFIX")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			t.Errorf("Expected no Authorization header when prefix is explicitly empty, got %q", authHeader)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("audio"))
+	}))
+	defer server.Close()
+
+	authPrefix := ""
+	client := NewClientWithOptions(ClientOptions{
+		APIKey:           "",
+		APIURL:           server.URL,
+		AuthHeaderPrefix: authPrefix,
+		Version:          "1.0.0",
+	})
+
+	opts := &TTSOptions{
+		Speaker: "astra",
+		ModelID: "arcana",
+	}
+	_, err := client.TTS("test", opts)
+	if err != nil {
+		t.Fatalf("TTS failed: %v", err)
+	}
+}
+
 func TestTTS_Unauthorized(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

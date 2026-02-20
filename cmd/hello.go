@@ -58,6 +58,8 @@ func NewHelloCmd() *cobra.Command {
 					JSON:       JSONOutput,
 					Version:    Version,
 					BaseURL:    apiURL,
+					ConfigEnv:  ConfigEnv,
+					ConfigFile: ConfigFile,
 				}
 				return tts.RunNonInteractive(runOpts)
 			}
@@ -66,7 +68,7 @@ func NewHelloCmd() *cobra.Command {
 				fmt.Fprintln(os.Stderr, styles.Dim("Playing audio (use -o to save)"))
 			}
 
-			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL))
+			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL, ConfigEnv, ConfigFile))
 			m, err := p.Run()
 			if err != nil {
 				return err

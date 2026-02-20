@@ -1,11 +1,12 @@
 module github.com/rimelabs/rime-cli
 
-go 1.21
+go 1.21.0
 
 require (
 	github.com/charmbracelet/bubbletea v0.24.0
 	github.com/charmbracelet/lipgloss v0.7.1
 	github.com/gopxl/beep/v2 v2.1.1
+	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/spf13/cobra v1.7.0
 	golang.org/x/term v0.17.0
 )

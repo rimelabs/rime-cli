@@ -99,10 +99,11 @@ func ValidLangsForModel(modelID string) []string {
 }
 
 type Client struct {
-	baseURL   string
-	apiKey    string
-	userAgent string
-	client    *http.Client
+	baseURL          string
+	apiKey           string
+	authHeaderPrefix string
+	userAgent        string
+	client           *http.Client
 }
 
 type TTSRequest struct {
@@ -144,17 +145,52 @@ func GetDashboardURL() string {
 	return defaultDashboardURL
 }
 
+type ClientOptions struct {
+	APIKey           string
+	APIURL           string
+	AuthHeaderPrefix string
+	Version          string
+}
+
 func NewClient(apiKey string, version string, baseURL ...string) *Client {
 	userAgent := fmt.Sprintf("rime-cli/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH)
 	url := GetAPIURL()
 	if len(baseURL) > 0 && baseURL[0] != "" {
 		url = baseURL[0]
 	}
+	authPrefix := "Bearer"
+	if prefix := os.Getenv("RIME_AUTH_HEADER_PREFIX"); prefix != "" {
+		authPrefix = prefix
+	}
 	return &Client{
-		baseURL:   url,
-		apiKey:    apiKey,
-		userAgent: userAgent,
-		client:    &http.Client{},
+		baseURL:          url,
+		apiKey:           apiKey,
+		authHeaderPrefix: authPrefix,
+		userAgent:        userAgent,
+		client:           &http.Client{},
+	}
+}
+
+func NewClientWithOptions(opts ClientOptions) *Client {
+	userAgent := fmt.Sprintf("rime-cli/%s (%s/%s)", opts.Version, runtime.GOOS, runtime.GOARCH)
+	url := opts.APIURL
+	if url == "" {
+		url = GetAPIURL()
+	}
+	authPrefix := opts.AuthHeaderPrefix
+	if authPrefix == "" {
+		if prefix := os.Getenv("RIME_AUTH_HEADER_PREFIX"); prefix != "" {
+			authPrefix = prefix
+		} else {
+			authPrefix = "Bearer"
+		}
+	}
+	return &Client{
+		baseURL:          url,
+		apiKey:           opts.APIKey,
+		authHeaderPrefix: authPrefix,
+		userAgent:        userAgent,
+		client:           &http.Client{},
 	}
 }
 
@@ -193,7 +229,9 @@ func (c *Client) TTS(text string, opts *TTSOptions) ([]byte, error) {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", audioFormat)
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	if c.apiKey != "" && c.authHeaderPrefix != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("%s %s", c.authHeaderPrefix, c.apiKey))
+	}
 	req.Header.Set("User-Agent", c.userAgent)
 
 	resp, err := c.client.Do(req)
@@ -265,7 +303,9 @@ func (c *Client) TTSStream(text string, opts *TTSOptions) (*TTSStreamResult, err
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", audioFormat)
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	if c.apiKey != "" && c.authHeaderPrefix != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("%s %s", c.authHeaderPrefix, c.apiKey))
+	}
 	req.Header.Set("User-Agent", c.userAgent)
 
 	start := time.Now()
@@ -324,7 +364,9 @@ func (c *Client) ValidateAPIKey() error {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	if c.apiKey != "" && c.authHeaderPrefix != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("%s %s", c.authHeaderPrefix, c.apiKey))
+	}
 	req.Header.Set("User-Agent", c.userAgent)
 
 	resp, err := c.client.Do(req)

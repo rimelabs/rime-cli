@@ -44,20 +44,26 @@ type RunOptions struct {
 	JSON       bool
 	Version    string
 	BaseURL    string
+	ConfigEnv  string
+	ConfigFile string
 }
 
 func RunNonInteractive(opts RunOptions) error {
-	apiKey, err := config.LoadAPIKey()
+	resolved, err := config.ResolveConfigWithOptions(config.ResolveOptions{
+		EnvName:        opts.ConfigEnv,
+		APIURLOverride: opts.BaseURL,
+		ConfigFile:     opts.ConfigFile,
+	})
 	if err != nil {
 		return err
 	}
 
-	var client *api.Client
-	if opts.BaseURL != "" {
-		client = api.NewClient(apiKey, opts.Version, opts.BaseURL)
-	} else {
-		client = api.NewClient(apiKey, opts.Version)
-	}
+	client := api.NewClientWithOptions(api.ClientOptions{
+		APIKey:           resolved.APIKey,
+		APIURL:           resolved.APIURL,
+		AuthHeaderPrefix: resolved.AuthHeaderPrefix,
+		Version:          opts.Version,
+	})
 	result, err := client.TTSStream(opts.Text, opts.TTSOptions)
 	if err != nil {
 		return err

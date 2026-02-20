@@ -89,11 +89,20 @@ The CLI handles format detection, metadata embedding, and playback for both form
 			}
 
 			if output == "-" {
-				apiKey, err := config.LoadAPIKey()
+				resolved, err := config.ResolveConfigWithOptions(config.ResolveOptions{
+					EnvName:        ConfigEnv,
+					APIURLOverride: apiURL,
+					ConfigFile:     ConfigFile,
+				})
 				if err != nil {
 					return err
 				}
-				client := api.NewClient(apiKey, Version, apiURL)
+				client := api.NewClientWithOptions(api.ClientOptions{
+					APIKey:           resolved.APIKey,
+					APIURL:           resolved.APIURL,
+					AuthHeaderPrefix: resolved.AuthHeaderPrefix,
+					Version:          Version,
+				})
 				audioData, err := client.TTS(text, opts)
 				if err != nil {
 					return err
@@ -119,6 +128,8 @@ The CLI handles format detection, metadata embedding, and playback for both form
 					JSON:       JSONOutput,
 					Version:    Version,
 					BaseURL:    apiURL,
+					ConfigEnv:  ConfigEnv,
+					ConfigFile: ConfigFile,
 				}
 				return tts.RunNonInteractive(runOpts)
 			}
@@ -127,7 +138,7 @@ The CLI handles format detection, metadata embedding, and playback for both form
 				fmt.Fprintln(os.Stderr, styles.Dim("Playing audio (use -o to save)"))
 			}
 
-			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL))
+			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL, ConfigEnv, ConfigFile))
 			m, err := p.Run()
 			if err != nil {
 				return err

@@ -172,13 +172,13 @@ func TestTTS_MissingAPIKey(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 	os.Unsetenv("RIME_CLI_API_KEY")
 
-	_, err := config.LoadAPIKey()
-	if err == nil {
-		t.Error("Expected error when API key is missing")
+	resolved, err := config.ResolveConfig("default", "")
+	if err != nil {
+		t.Fatalf("ResolveConfig should not error: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), "rime login") {
-		t.Errorf("Error should mention 'rime login', got: %v", err)
+	if resolved.APIKey != "" {
+		t.Error("Expected empty API key when none is configured")
 	}
 }
 

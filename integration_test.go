@@ -40,12 +40,17 @@ func TestTTS_Pipeline(t *testing.T) {
 		t.Fatalf("Failed to save API key: %v", err)
 	}
 
-	apiKey, err := config.LoadAPIKey()
+	resolved, err := config.ResolveConfig("default", "")
 	if err != nil {
-		t.Fatalf("Failed to load API key: %v", err)
+		t.Fatalf("Failed to resolve config: %v", err)
 	}
 
-	client := api.NewClient(apiKey, "test-version")
+	client := api.NewClientWithOptions(api.ClientOptions{
+		APIKey:           resolved.APIKey,
+		APIURL:           resolved.APIURL,
+		AuthHeaderPrefix: resolved.AuthHeaderPrefix,
+		Version:          "test-version",
+	})
 	opts := &api.TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",

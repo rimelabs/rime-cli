@@ -14,14 +14,15 @@ import (
 )
 
 type CurlOptions struct {
-	Text    string
-	Speaker string
-	ModelID string
-	Lang    string
-	ShowKey bool
-	Oneline bool
-	APIKey  string
-	APIURL  string
+	Text       string
+	Speaker    string
+	ModelID    string
+	Lang       string
+	ShowKey    bool
+	Oneline    bool
+	APIKey     string
+	APIURL     string
+	AuthPrefix string
 }
 
 func generateCurlCommand(opts CurlOptions) (string, error) {
@@ -54,18 +55,23 @@ func generateCurlCommand(opts CurlOptions) (string, error) {
 		apiURL = api.GetAPIURL()
 	}
 
+	authPrefix := opts.AuthPrefix
+	if authPrefix == "" {
+		authPrefix = "Bearer"
+	}
+
 	acceptHeader := api.GetAudioFormat(opts.ModelID)
 
 	var b strings.Builder
 	jsonStr := strings.ReplaceAll(string(jsonBody), "'", "'\\''")
 
 	if opts.Oneline {
-		b.WriteString(fmt.Sprintf("curl -X POST '%s' -H 'Accept: %s' -H 'Authorization: Bearer %s' -H 'Content-Type: application/json' -d '%s'", apiURL, acceptHeader, authHeader, jsonStr))
+		b.WriteString(fmt.Sprintf("curl -X POST '%s' -H 'Accept: %s' -H 'Authorization: %s %s' -H 'Content-Type: application/json' -d '%s'", apiURL, acceptHeader, authPrefix, authHeader, jsonStr))
 	} else {
 		b.WriteString("curl --request POST \\\n")
 		b.WriteString(fmt.Sprintf("  --url '%s' \\\n", apiURL))
 		b.WriteString(fmt.Sprintf("  --header 'Accept: %s' \\\n", acceptHeader))
-		b.WriteString(fmt.Sprintf("  --header 'Authorization: Bearer %s' \\\n", authHeader))
+		b.WriteString(fmt.Sprintf("  --header 'Authorization: %s %s' \\\n", authPrefix, authHeader))
 		b.WriteString("  --header 'Content-Type: application/json' \\\n")
 		b.WriteString(fmt.Sprintf("  --data '%s'", jsonStr))
 	}
@@ -128,22 +134,28 @@ Or provide your own text:
 				}
 			}
 
+			resolved, err := config.ResolveConfigWithOptions(config.ResolveOptions{
+				EnvName:        ConfigEnv,
+				APIURLOverride: apiURL,
+				ConfigFile:     ConfigFile,
+			})
+			if err != nil {
+				return err
+			}
+
 			curlOpts := CurlOptions{
-				Text:    text,
-				Speaker: spk,
-				ModelID: modelId,
-				Lang:    lang,
-				ShowKey: showKey,
-				Oneline: oneline,
-				APIURL:  apiURL,
+				Text:       text,
+				Speaker:    spk,
+				ModelID:    modelId,
+				Lang:       lang,
+				ShowKey:    showKey,
+				Oneline:    oneline,
+				APIURL:     resolved.APIURL,
+				AuthPrefix: resolved.AuthHeaderPrefix,
 			}
 
 			if showKey {
-				apiKey, err := config.LoadAPIKey()
-				if err != nil {
-					return err
-				}
-				curlOpts.APIKey = apiKey
+				curlOpts.APIKey = resolved.APIKey
 			}
 
 			curlCmd, err := generateCurlCommand(curlOpts)

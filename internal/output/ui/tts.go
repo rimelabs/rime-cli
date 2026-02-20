@@ -37,6 +37,8 @@ type TTSModel struct {
 	shouldPlay bool
 	version    string
 	baseURL    string
+	configEnv  string
+	configFile string
 
 	state       TTSState
 	err         error
@@ -73,19 +75,17 @@ type StreamStartedMsg struct {
 type TTSTickMsg time.Time
 type TTSQuitMsg struct{}
 
-func NewTTSModel(text string, opts *api.TTSOptions, output string, shouldPlay bool, version string, baseURL ...string) TTSModel {
+func NewTTSModel(text string, opts *api.TTSOptions, output string, shouldPlay bool, version string, baseURL string, configEnv string, configFile string) TTSModel {
 	predictedDuration := visualizer.EstimateDurationFromText(text)
-	url := ""
-	if len(baseURL) > 0 {
-		url = baseURL[0]
-	}
 	return TTSModel{
 		text:       text,
 		opts:       opts,
 		output:     output,
 		shouldPlay: shouldPlay,
 		version:    version,
-		baseURL:    url,
+		baseURL:    baseURL,
+		configEnv:  configEnv,
+		configFile: configFile,
 		state:      TTSStateConnecting,
 		waveform:   visualizer.NewWaveform(),
 		transcript: visualizer.NewTranscript(text, predictedDuration),
@@ -305,18 +305,24 @@ func (m *TTSModel) startStreaming() tea.Cmd {
 	shouldPlay := m.shouldPlay
 	version := m.version
 	baseURL := m.baseURL
+	configEnv := m.configEnv
+	configFile := m.configFile
 	return func() tea.Msg {
-		apiKey, err := config.LoadAPIKey()
+		resolved, err := config.ResolveConfigWithOptions(config.ResolveOptions{
+			EnvName:        configEnv,
+			APIURLOverride: baseURL,
+			ConfigFile:     configFile,
+		})
 		if err != nil {
 			return StreamStartedMsg{Err: err}
 		}
 
-		var client *api.Client
-		if baseURL != "" {
-			client = api.NewClient(apiKey, version, baseURL)
-		} else {
-			client = api.NewClient(apiKey, version)
-		}
+		client := api.NewClientWithOptions(api.ClientOptions{
+			APIKey:           resolved.APIKey,
+			APIURL:           resolved.APIURL,
+			AuthHeaderPrefix: resolved.AuthHeaderPrefix,
+			Version:          version,
+		})
 		result, err := client.TTSStream(text, opts)
 		if err != nil {
 			return StreamStartedMsg{Err: err}

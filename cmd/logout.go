@@ -17,9 +17,9 @@ func NewLogoutCmd() *cobra.Command {
 		Long:  "Removes the locally saved API key, requiring you to run 'rime login' again",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path, err := config.TokenFilePath()
+			path, err := config.ConfigFilePath()
 			if err != nil {
-				return fmt.Errorf("could not determine token path: %w", err)
+				return fmt.Errorf("could not determine config path: %w", err)
 			}
 
 			if err := os.Remove(path); err != nil {
@@ -27,7 +27,7 @@ func NewLogoutCmd() *cobra.Command {
 					fmt.Println(styles.Dim("Not logged in."))
 					return nil
 				}
-				return fmt.Errorf("failed to remove API key: %w", err)
+				return fmt.Errorf("failed to remove config file: %w", err)
 			}
 
 			fmt.Println(styles.Success("Logged out."))
