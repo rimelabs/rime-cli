@@ -1,21 +1,21 @@
 class RimeCli < Formula
   desc "Command-line interface for Rime text-to-speech"
   homepage "https://github.com/rimelabs/rime-cli"
-  version "0.1.0"
+  version "0.1.1"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/rimelabs/rime-cli/releases/download/v#{version}/rime-darwin-arm64.tar.gz"
-      sha256 "c901b379e76f1854400406a6b95a0f46f35dd2fc55873d4876c4e2021dc3b731"
+      sha256 "37a7fd9ba4d4b4d9d7e941d3803d43303087f738d9e0e001484edc6e9bc3862c"
     else
       url "https://github.com/rimelabs/rime-cli/releases/download/v#{version}/rime-darwin-amd64.tar.gz"
-      sha256 "57392f55afafb80a73754e5b0c6505a2c48d3403c2c9b24db6eaa9f04e988313"
+      sha256 "4963191da5f64a7dd69b2803374395cce75653bbb2f85f5c4bd83f31130b648d"
     end
   end
 
   on_linux do
     url "https://github.com/rimelabs/rime-cli/releases/download/v#{version}/rime-linux-amd64.tar.gz"
-    sha256 "990ba6cb3419cc45d42e6748e9d4559088eb13b268e0cb8e39ea6cf8ab88bab8"
+    sha256 "e88c84017f57c4717294e99102b6dc476119195e3b95a83fcc97abba6b0df8b7"
   end
 
   def install
