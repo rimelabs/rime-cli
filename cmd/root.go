@@ -22,6 +22,7 @@ func NewRootCmd(version string) *cobra.Command {
 	root.PersistentFlags().BoolVar(&JSONOutput, "json", false, "Output results as JSON")
 
 	root.AddCommand(NewLoginCmd())
+	root.AddCommand(NewLogoutCmd())
 	root.AddCommand(NewCurlCmd())
 	root.AddCommand(NewTTSCmd())
 	root.AddCommand(NewHelloCmd())

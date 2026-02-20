@@ -16,15 +16,17 @@ const (
 	defaultAPIBaseURL   = "https://users.rime.ai/v1/rime-tts"
 	defaultDashboardURL = "https://app.rime.ai"
 
-	ModelIDArcana = "arcana"
-	ModelIDMistV2 = "mistv2"
-	ModelIDMist   = "mist"
+	ModelIDArcana   = "arcana"
+	ModelIDArcanaV2 = "arcanav2"
+	ModelIDMistV2   = "mistv2"
+	ModelIDMist     = "mist"
 )
 
 var validModelIDs = map[string]bool{
-	ModelIDArcana: true,
-	ModelIDMistV2: true,
-	ModelIDMist:   true,
+	ModelIDArcana:   true,
+	ModelIDArcanaV2: true,
+	ModelIDMistV2:   true,
+	ModelIDMist:     true,
 }
 
 type langEntry struct {
@@ -53,6 +55,14 @@ var mistLangSet = map[string]bool{
 	"spa": true, "es": true,
 }
 
+var arcanaV2LangSet = map[string]bool{
+	"eng": true, "en": true,
+	"spa": true, "es": true,
+	"ger": true, "de": true,
+	"fra": true, "fr": true,
+	"hin": true, "hi": true,
+}
+
 var arcanaLangSet map[string]bool
 
 func init() {
@@ -66,6 +76,9 @@ func init() {
 func langSetForModel(modelID string) map[string]bool {
 	if modelID == ModelIDMist || modelID == ModelIDMistV2 {
 		return mistLangSet
+	}
+	if modelID == ModelIDArcanaV2 {
+		return arcanaV2LangSet
 	}
 	return arcanaLangSet
 }
@@ -152,7 +165,7 @@ func (c *Client) TTS(text string, opts *TTSOptions) ([]byte, error) {
 		return nil, fmt.Errorf("modelId is required")
 	}
 	if !IsValidModelID(opts.ModelID) {
-		return nil, fmt.Errorf("invalid modelId: %s (valid options: %s, %s, %s)", opts.ModelID, ModelIDArcana, ModelIDMistV2, ModelIDMist)
+		return nil, fmt.Errorf("invalid modelId: %s (valid options: %s, %s, %s, %s)", opts.ModelID, ModelIDArcana, ModelIDArcanaV2, ModelIDMistV2, ModelIDMist)
 	}
 
 	reqBody := TTSRequest{
@@ -224,7 +237,7 @@ func (c *Client) TTSStream(text string, opts *TTSOptions) (*TTSStreamResult, err
 		return nil, fmt.Errorf("modelId is required")
 	}
 	if !IsValidModelID(opts.ModelID) {
-		return nil, fmt.Errorf("invalid modelId: %s (modelId should be one of: %s, %s, %s)", opts.ModelID, ModelIDArcana, ModelIDMistV2, ModelIDMist)
+		return nil, fmt.Errorf("invalid modelId: %s (modelId should be one of: %s, %s, %s, %s)", opts.ModelID, ModelIDArcana, ModelIDArcanaV2, ModelIDMistV2, ModelIDMist)
 	}
 
 	reqBody := TTSRequest{

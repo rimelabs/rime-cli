@@ -248,6 +248,24 @@ func TestIsValidLang(t *testing.T) {
 		{"xyz", ModelIDArcana, false},
 		{"", ModelIDArcana, false},
 
+		{"eng", ModelIDArcanaV2, true},
+		{"en", ModelIDArcanaV2, true},
+		{"spa", ModelIDArcanaV2, true},
+		{"es", ModelIDArcanaV2, true},
+		{"ger", ModelIDArcanaV2, true},
+		{"de", ModelIDArcanaV2, true},
+		{"fra", ModelIDArcanaV2, true},
+		{"fr", ModelIDArcanaV2, true},
+		{"hin", ModelIDArcanaV2, true},
+		{"hi", ModelIDArcanaV2, true},
+		{"ara", ModelIDArcanaV2, false},
+		{"jpn", ModelIDArcanaV2, false},
+		{"ja", ModelIDArcanaV2, false},
+		{"heb", ModelIDArcanaV2, false},
+		{"tam", ModelIDArcanaV2, false},
+		{"xyz", ModelIDArcanaV2, false},
+		{"", ModelIDArcanaV2, false},
+
 		{"eng", ModelIDMistV2, true},
 		{"en", ModelIDMistV2, true},
 		{"fra", ModelIDMistV2, true},
@@ -277,6 +295,11 @@ func TestValidLangsForModel(t *testing.T) {
 		t.Errorf("expected 22 arcana lang codes (11 iso3 + 11 iso1), got %d: %v", len(arcanaLangs), arcanaLangs)
 	}
 
+	arcanaV2Langs := ValidLangsForModel(ModelIDArcanaV2)
+	if len(arcanaV2Langs) != 10 {
+		t.Errorf("expected 10 arcanav2 lang codes (5 iso3 + 5 iso1), got %d: %v", len(arcanaV2Langs), arcanaV2Langs)
+	}
+
 	mistLangs := ValidLangsForModel(ModelIDMistV2)
 	if len(mistLangs) != 8 {
 		t.Errorf("expected 8 mist lang codes (4 iso3 + 4 iso1), got %d: %v", len(mistLangs), mistLangs)
@@ -288,12 +311,24 @@ func TestValidLangsForModel(t *testing.T) {
 			break
 		}
 	}
+
+	for i := 1; i < len(arcanaV2Langs); i++ {
+		if arcanaV2Langs[i] < arcanaV2Langs[i-1] {
+			t.Errorf("arcanav2 langs not sorted: %v", arcanaV2Langs)
+			break
+		}
+	}
 }
 
 func TestGetAudioFormat_WAV(t *testing.T) {
 	format := GetAudioFormat("arcana")
 	if format != "audio/wav" {
 		t.Errorf("Expected audio/wav, got %s", format)
+	}
+
+	format = GetAudioFormat("arcanav2")
+	if format != "audio/wav" {
+		t.Errorf("Expected audio/wav for arcanav2, got %s", format)
 	}
 
 	format = GetAudioFormat("")
@@ -368,5 +403,56 @@ func TestTTSStream_MP3Request(t *testing.T) {
 
 	if result.ContentType != "audio/mpeg" {
 		t.Errorf("Expected Content-Type audio/mpeg, got %s", result.ContentType)
+	}
+}
+
+func TestIsValidModelID(t *testing.T) {
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{ModelIDArcana, true},
+		{ModelIDArcanaV2, true},
+		{ModelIDMistV2, true},
+		{ModelIDMist, true},
+		{"invalid", false},
+		{"", false},
+		{"ARCANA", false},
+		{"arcana ", false},
+	}
+	for _, tt := range tests {
+		got := IsValidModelID(tt.modelID)
+		if got != tt.want {
+			t.Errorf("IsValidModelID(%q) = %v, want %v", tt.modelID, got, tt.want)
+		}
+	}
+}
+
+func TestTTS_ArcanaV2Request(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") != "audio/wav" {
+			t.Errorf("Expected Accept: audio/wav, got %s", r.Header.Get("Accept"))
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("fake-wav-data"))
+	}))
+	defer server.Close()
+
+	os.Setenv("RIME_API_URL", server.URL)
+	defer os.Unsetenv("RIME_API_URL")
+
+	client := NewClient("test-key", "1.0.0")
+	opts := &TTSOptions{
+		Speaker: "astra",
+		ModelID: "arcanav2",
+		Lang:    "eng",
+	}
+	audio, err := client.TTS("hello world", opts)
+	if err != nil {
+		t.Fatalf("TTS failed: %v", err)
+	}
+
+	if string(audio) != "fake-wav-data" {
+		t.Errorf("Expected fake-wav-data, got %s", string(audio))
 	}
 }

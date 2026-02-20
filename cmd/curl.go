@@ -121,7 +121,7 @@ Or provide your own text:
 
 			if modelId != "" {
 				if !api.IsValidModelID(modelId) {
-					return fmt.Errorf("invalid modelId: %s (valid options: %s, %s, %s)", modelId, api.ModelIDArcana, api.ModelIDMistV2, api.ModelIDMist)
+					return fmt.Errorf("invalid modelId: %s (valid options: %s, %s, %s, %s)", modelId, api.ModelIDArcana, api.ModelIDArcanaV2, api.ModelIDMistV2, api.ModelIDMist)
 				}
 				if !api.IsValidLang(lang, modelId) {
 					return fmt.Errorf("invalid language %q for model %s (valid: %s)", lang, modelId, strings.Join(api.ValidLangsForModel(modelId), ", "))
@@ -162,7 +162,7 @@ Or provide your own text:
 	}
 
 	cmd.Flags().StringVarP(&spk, "speaker", "s", "", "Voice speaker to use (required)")
-	cmd.Flags().StringVarP(&modelId, "model-id", "m", "", fmt.Sprintf("Model ID (required, e.g., %s, %s, %s)", api.ModelIDArcana, api.ModelIDMistV2, api.ModelIDMist))
+	cmd.Flags().StringVarP(&modelId, "model-id", "m", "", fmt.Sprintf("Model ID (required, e.g., %s, %s, %s, %s)", api.ModelIDArcana, api.ModelIDArcanaV2, api.ModelIDMistV2, api.ModelIDMist))
 	cmd.Flags().StringVar(&modelId, "modelId", "", "")
 	cmd.Flags().MarkHidden("modelId")
 	cmd.Flags().StringVarP(&lang, "lang", "l", "eng", "Language code (e.g., eng, es, fra). Valid codes depend on model.")
