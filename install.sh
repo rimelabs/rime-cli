@@ -154,7 +154,7 @@ if [[ ! -d $bin_dir ]]; then
     error "Failed to create install directory \"$bin_dir\""
 fi
 
-curl --fail --location --progress-bar --output "$tarball" "$rime_uri" ||
+curl --fail --location --output "$tarball" "$rime_uri" ||
   error "Failed to download rime from \"$rime_uri\""
 
 tar -xzf "$tarball" -C "$bin_dir" ||
