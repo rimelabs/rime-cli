@@ -22,24 +22,24 @@ fi
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 error() {
-  echo -e "${Red}error${Color_Off}:" "$@" >&2
+  printf '%b\n' "${Red}error${Color_Off}: $*" >&2
   exit 1
 }
 
 info() {
-  echo -e "${Dim}$*${Color_Off}"
+  printf '%b\n' "${Dim}$*${Color_Off}"
 }
 
 info_bold() {
-  echo -e "${Bold_White}$*${Color_Off}"
+  printf '%b\n' "${Bold_White}$*${Color_Off}"
 }
 
 success() {
-  echo -e "${Green}$*${Color_Off}"
+  printf '%b\n' "${Green}$*${Color_Off}"
 }
 
 divider() {
-  echo -e "${Dim}──────────────────────────────────────${Color_Off}"
+  printf '%b\n' "${Dim}──────────────────────────────────────${Color_Off}"
 }
 
 tildify() {
@@ -135,7 +135,7 @@ trap cleanup EXIT
 # ── Welcome ───────────────────────────────────────────────────────────────────
 
 echo
-echo -e "${Bold_White}Installing Rime CLI...${Color_Off}"
+printf '%b\n' "${Bold_White}Installing Rime CLI...${Color_Off}"
 echo
 
 # ── Snapshot existing state ───────────────────────────────────────────────────
@@ -207,19 +207,19 @@ ask_yes_no() {
   local prompt="$1"
 
   if [[ "$YES" = true ]]; then
-    echo -e "$prompt ${Dim}[Y/n] Y${Color_Off}"
+    printf '%b\n' "$prompt ${Dim}[Y/n] Y${Color_Off}"
     return 0
   fi
 
   local answer
   if [[ -t 0 ]]; then
-    read -r -p "$(echo -e "$prompt ${Dim}[Y/n]${Color_Off} ")" answer
+    read -r -p "$(printf '%b' "$prompt ${Dim}[Y/n]${Color_Off} ")" answer
   elif [[ -e /dev/tty ]]; then
     # Running via curl | sh — stdin is the pipe, but we can still prompt via tty
-    read -r -p "$(echo -e "$prompt ${Dim}[Y/n]${Color_Off} ")" answer </dev/tty
+    read -r -p "$(printf '%b' "$prompt ${Dim}[Y/n]${Color_Off} ")" answer </dev/tty
   else
     # No interactive input available; auto-accept
-    echo -e "$prompt ${Dim}[Y/n] Y${Color_Off}"
+    printf '%b\n' "$prompt ${Dim}[Y/n] Y${Color_Off}"
     return 0
   fi
 
@@ -233,7 +233,7 @@ refresh_command=''
 
 if [[ "$already_in_path" = false ]]; then
   divider
-  echo -e "  ${Bold_White}PATH setup${Color_Off}"
+  printf '%b\n' "  ${Bold_White}PATH setup${Color_Off}"
   divider
   echo
 
@@ -348,7 +348,7 @@ fi
 # ── Get started ───────────────────────────────────────────────────────────────
 
 divider
-echo -e "  ${Bold_White}Get started${Color_Off}"
+printf '%b\n' "  ${Bold_White}Get started${Color_Off}"
 divider
 echo
 
