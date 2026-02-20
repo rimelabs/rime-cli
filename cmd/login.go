@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/rimelabs/rime-cli/internal/config"
 	"github.com/rimelabs/rime-cli/internal/output/styles"
 )
+
+func isAuthError(err error) bool {
+	return strings.Contains(err.Error(), "authentication failed") ||
+		strings.Contains(err.Error(), "invalid API key")
+}
 
 func NewLoginCmd() *cobra.Command {
 	return &cobra.Command{
@@ -24,6 +30,22 @@ func NewLoginCmd() *cobra.Command {
 			apiKey, err := auth.Login(api.GetDashboardURL())
 			if err != nil {
 				return fmt.Errorf("authentication failed: %w", err)
+			}
+
+			fmt.Println(styles.Dim("Verifying API key..."))
+			client := api.NewClient(apiKey, cmd.Root().Version)
+			if err := client.ValidateAPIKey(); err != nil {
+				// 401 means the key itself is bad — don't save it
+				if isAuthError(err) {
+					return fmt.Errorf("API key appears to be invalid: %w", err)
+				}
+				// Network or other transient error — save the key and warn
+				if err := config.SaveAPIKey(apiKey); err != nil {
+					return err
+				}
+				fmt.Println(styles.Error("Could not verify API key: " + err.Error()))
+				fmt.Println(styles.Dim("Key saved anyway. Run 'rime hello' to test when ready."))
+				return nil
 			}
 
 			if err := config.SaveAPIKey(apiKey); err != nil {

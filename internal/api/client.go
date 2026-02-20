@@ -15,6 +15,7 @@ import (
 const (
 	defaultAPIBaseURL   = "https://users.rime.ai/v1/rime-tts"
 	defaultDashboardURL = "https://app.rime.ai"
+	oovURL              = "https://beta.rime.ai/oov"
 
 	ModelIDArcana   = "arcana"
 	ModelIDArcanaV2 = "arcanav2"
@@ -310,6 +311,37 @@ func (c *Client) TTSStream(text string, opts *TTSOptions) (*TTSStreamResult, err
 		ContentType: contentType,
 		TTFB:        ttfb,
 	}, nil
+}
+
+// ValidateAPIKey confirms the API key is valid using the lightweight OOV
+// (out-of-vocabulary) endpoint. No TTS credits are consumed.
+func (c *Client) ValidateAPIKey() error {
+	body := bytes.NewBufferString(`{"text":"cli"}`)
+	req, err := http.NewRequest("POST", oovURL, body)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	req.Header.Set("User-Agent", c.userAgent)
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("authentication failed: invalid API key")
+	}
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }
 
 func EffectiveOpts(opts *TTSOptions) (speaker, modelId, lang string) {
