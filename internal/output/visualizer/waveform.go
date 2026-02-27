@@ -34,7 +34,11 @@ type Waveform struct {
 
 // NewWaveform creates a waveform buffer sized to terminal width.
 func NewWaveform() *Waveform {
-	width := getTerminalWidth()
+	return NewWaveformWithWidth(getTerminalWidth())
+}
+
+// NewWaveformWithWidth creates a waveform buffer sized to the given width.
+func NewWaveformWithWidth(width int) *Waveform {
 	if width < minWidth {
 		width = minWidth
 	}
@@ -96,6 +100,11 @@ func (w *Waveform) RenderBot() string {
 	w.cachedPlayhead = w.playhead
 	w.cachedSampleCount = len(w.samples)
 	return w.cachedBot
+}
+
+// Width returns the display width of the waveform in terminal columns.
+func (w *Waveform) Width() int {
+	return w.displayWidth
 }
 
 func (w *Waveform) renderRowWithPlayhead(charFunc func(int, int) rune) string {

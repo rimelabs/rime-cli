@@ -41,7 +41,10 @@ func TestTTS_HappyPath(t *testing.T) {
 	}
 
 	Version = "test-version"
-	client := api.NewClient("test-key", Version)
+	client := api.NewClient(api.ClientOptions{
+		APIKey:  "test-key",
+		Version: Version,
+	})
 	opts := &api.TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -145,7 +148,10 @@ func TestTTS_StdoutOutput(t *testing.T) {
 	}
 
 	Version = "test-version"
-	client := api.NewClient("test-key", Version)
+	client := api.NewClient(api.ClientOptions{
+		APIKey:  "test-key",
+		Version: Version,
+	})
 	opts := &api.TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -206,5 +212,48 @@ func TestTTS_InvalidArguments(t *testing.T) {
 	}
 	if err != nil && !strings.Contains(err.Error(), "--speaker") && !strings.Contains(err.Error(), "--model-id") {
 		t.Errorf("Error should mention required flags, got: %v", err)
+	}
+}
+
+func TestTTSCmd_ValidParamsAccepted(t *testing.T) {
+	wavData := testhelpers.MakeValidWAV(24000)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/wav")
+		w.WriteHeader(http.StatusOK)
+		w.Write(wavData)
+	}))
+	defer server.Close()
+
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("RIME_API_URL", server.URL)
+	defer os.Unsetenv("RIME_API_URL")
+
+	if err := config.SaveAPIKey("test-key"); err != nil {
+		t.Fatalf("Failed to save API key: %v", err)
+	}
+
+	cmd := NewTTSCmd()
+	cmd.SetArgs([]string{
+		"hello", "-s", "astra", "-m", api.ModelIDArcana, "-o", "-",
+		"--temperature", "0.7",
+		"--top-p", "0.9",
+		"--repetition-penalty", "1.3",
+		"--max-tokens", "800",
+		"--sampling-rate", "24000",
+		"--speed-alpha", "1.2",
+	})
+
+	oldStdout := os.Stdout
+	devNull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	os.Stdout = devNull
+	defer func() { os.Stdout = oldStdout }()
+
+	err := cmd.Execute()
+	if err != nil {
+		t.Errorf("expected valid arcana params to be accepted, got: %v", err)
 	}
 }

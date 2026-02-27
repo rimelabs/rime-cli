@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,10 @@ func TestTTS_Success(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -55,7 +59,7 @@ func TestNewClientWithOptions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClientWithOptions(ClientOptions{
+	client := NewClient(ClientOptions{
 		APIKey:           "custom-key",
 		APIURL:           server.URL,
 		AuthHeaderPrefix: "Api-Key",
@@ -82,7 +86,7 @@ func TestNewClientWithOptions_NoAuth(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClientWithOptions(ClientOptions{
+	client := NewClient(ClientOptions{
 		APIKey:           "",
 		APIURL:           server.URL,
 		AuthHeaderPrefix: "Bearer",
@@ -114,7 +118,7 @@ func TestNewClientWithOptions_EmptyPrefix(t *testing.T) {
 	defer server.Close()
 
 	authPrefix := ""
-	client := NewClientWithOptions(ClientOptions{
+	client := NewClient(ClientOptions{
 		APIKey:           "",
 		APIURL:           server.URL,
 		AuthHeaderPrefix: authPrefix,
@@ -141,7 +145,10 @@ func TestTTS_Unauthorized(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("bad-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "bad-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -178,7 +185,10 @@ func TestTTS_WithOptions(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "celeste",
 		ModelID: "arcana",
@@ -194,7 +204,10 @@ func TestTTS_NetworkError(t *testing.T) {
 	os.Setenv("RIME_API_URL", "http://localhost:99999")
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	client.client.Timeout = 100 * time.Millisecond
 	opts := &TTSOptions{
 		Speaker: "astra",
@@ -220,7 +233,10 @@ func TestTTS_MalformedResponse(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -253,7 +269,10 @@ func TestTTSStream_Success(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -288,7 +307,10 @@ func TestTTSStream_Error(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("bad-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "bad-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcana",
@@ -443,7 +465,10 @@ func TestTTS_MP3Request(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "mistv2",
@@ -476,7 +501,10 @@ func TestTTSStream_MP3Request(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "mistv2",
@@ -527,7 +555,10 @@ func TestTTS_ArcanaV2Request(t *testing.T) {
 	os.Setenv("RIME_API_URL", server.URL)
 	defer os.Unsetenv("RIME_API_URL")
 
-	client := NewClient("test-key", "1.0.0")
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
 	opts := &TTSOptions{
 		Speaker: "astra",
 		ModelID: "arcanav2",
@@ -540,5 +571,284 @@ func TestTTS_ArcanaV2Request(t *testing.T) {
 
 	if string(audio) != "fake-wav-data" {
 		t.Errorf("Expected fake-wav-data, got %s", string(audio))
+	}
+}
+
+func TestIsArcanaModel(t *testing.T) {
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{ModelIDArcana, true},
+		{ModelIDArcanaV2, true},
+		{ModelIDMist, false},
+		{ModelIDMistV2, false},
+		{"", false},
+		{"invalid", false},
+	}
+	for _, tt := range tests {
+		got := IsArcanaModel(tt.modelID)
+		if got != tt.want {
+			t.Errorf("IsArcanaModel(%q) = %v, want %v", tt.modelID, got, tt.want)
+		}
+	}
+}
+
+func TestIsMistModel(t *testing.T) {
+	tests := []struct {
+		modelID string
+		want    bool
+	}{
+		{ModelIDMist, true},
+		{ModelIDMistV2, true},
+		{ModelIDArcana, false},
+		{ModelIDArcanaV2, false},
+		{"", false},
+		{"invalid", false},
+	}
+	for _, tt := range tests {
+		got := IsMistModel(tt.modelID)
+		if got != tt.want {
+			t.Errorf("IsMistModel(%q) = %v, want %v", tt.modelID, got, tt.want)
+		}
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestValidateModelParams(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    *TTSOptions
+		wantErr string
+	}{
+		{"nil opts", nil, ""},
+
+		// Arcana-only params on arcana model — valid
+		{"temperature valid arcana", &TTSOptions{ModelID: ModelIDArcana, Temperature: ptr(0.5)}, ""},
+		{"top-p valid arcana", &TTSOptions{ModelID: ModelIDArcana, TopP: ptr(0.8)}, ""},
+		{"repetition-penalty valid arcana", &TTSOptions{ModelID: ModelIDArcana, RepetitionPenalty: ptr(1.5)}, ""},
+		{"max-tokens valid arcana", &TTSOptions{ModelID: ModelIDArcana, MaxTokens: ptr(1200)}, ""},
+
+		// Arcana-only params on mist — errors
+		{"temperature on mist", &TTSOptions{ModelID: ModelIDMist, Temperature: ptr(0.5)}, "arcana/arcanav2"},
+		{"top-p on mistv2", &TTSOptions{ModelID: ModelIDMistV2, TopP: ptr(0.5)}, "arcana/arcanav2"},
+		{"repetition-penalty on mist", &TTSOptions{ModelID: ModelIDMist, RepetitionPenalty: ptr(1.5)}, "arcana/arcanav2"},
+		{"max-tokens on mistv2", &TTSOptions{ModelID: ModelIDMistV2, MaxTokens: ptr(1000)}, "arcana/arcanav2"},
+
+		// Out-of-range arcana params
+		{"temperature too low", &TTSOptions{ModelID: ModelIDArcana, Temperature: ptr(-0.1)}, "between 0 and 1"},
+		{"temperature too high", &TTSOptions{ModelID: ModelIDArcana, Temperature: ptr(1.1)}, "between 0 and 1"},
+		{"top-p too high", &TTSOptions{ModelID: ModelIDArcana, TopP: ptr(1.5)}, "between 0 and 1"},
+		{"repetition-penalty too low", &TTSOptions{ModelID: ModelIDArcana, RepetitionPenalty: ptr(0.5)}, "between 1 and 2"},
+		{"repetition-penalty too high", &TTSOptions{ModelID: ModelIDArcana, RepetitionPenalty: ptr(2.5)}, "between 1 and 2"},
+		{"max-tokens too low", &TTSOptions{ModelID: ModelIDArcana, MaxTokens: ptr(100)}, "between 200 and 5000"},
+		{"max-tokens too high", &TTSOptions{ModelID: ModelIDArcana, MaxTokens: ptr(6000)}, "between 200 and 5000"},
+
+		// Mist-only params on mist — valid
+		{"pause-between-brackets on mist", &TTSOptions{ModelID: ModelIDMist, PauseBetweenBrackets: ptr(true)}, ""},
+		{"phonemize-between-brackets on mistv2", &TTSOptions{ModelID: ModelIDMistV2, PhonemizeBetweenBrackets: ptr(true)}, ""},
+		{"inline-speed-alpha on mist", &TTSOptions{ModelID: ModelIDMist, InlineSpeedAlpha: ptr("1.0,1.2")}, ""},
+		{"no-text-normalization on mist", &TTSOptions{ModelID: ModelIDMist, NoTextNormalization: ptr(true)}, ""},
+		{"save-oovs on mist", &TTSOptions{ModelID: ModelIDMist, SaveOovs: ptr(true)}, ""},
+
+		// Mist-only params on arcana — errors
+		{"pause-between-brackets on arcana", &TTSOptions{ModelID: ModelIDArcana, PauseBetweenBrackets: ptr(true)}, "mist/mistv2"},
+		{"phonemize-between-brackets on arcana", &TTSOptions{ModelID: ModelIDArcana, PhonemizeBetweenBrackets: ptr(true)}, "mist/mistv2"},
+		{"inline-speed-alpha on arcana", &TTSOptions{ModelID: ModelIDArcana, InlineSpeedAlpha: ptr("1.0")}, "mist/mistv2"},
+		{"no-text-normalization on arcanav2", &TTSOptions{ModelID: ModelIDArcanaV2, NoTextNormalization: ptr(true)}, "mist/mistv2"},
+		{"save-oovs on arcana", &TTSOptions{ModelID: ModelIDArcana, SaveOovs: ptr(true)}, "mist/mistv2"},
+
+		// SpeedAlpha
+		{"speed-alpha valid", &TTSOptions{ModelID: ModelIDArcana, SpeedAlpha: ptr(1.5)}, ""},
+		{"speed-alpha zero", &TTSOptions{ModelID: ModelIDArcana, SpeedAlpha: ptr(0.0)}, "greater than 0"},
+		{"speed-alpha negative", &TTSOptions{ModelID: ModelIDMist, SpeedAlpha: ptr(-0.5)}, "greater than 0"},
+
+		// SamplingRate - arcana valid
+		{"sampling-rate 24000 arcana", &TTSOptions{ModelID: ModelIDArcana, SamplingRate: ptr(24000)}, ""},
+		{"sampling-rate 8000 arcana", &TTSOptions{ModelID: ModelIDArcana, SamplingRate: ptr(8000)}, ""},
+		{"sampling-rate 96000 arcana", &TTSOptions{ModelID: ModelIDArcana, SamplingRate: ptr(96000)}, ""},
+		// SamplingRate - arcana invalid
+		{"sampling-rate 12000 arcana", &TTSOptions{ModelID: ModelIDArcana, SamplingRate: ptr(12000)}, "must be one of"},
+		// SamplingRate - mist valid
+		{"sampling-rate 16000 mist", &TTSOptions{ModelID: ModelIDMist, SamplingRate: ptr(16000)}, ""},
+		{"sampling-rate 4000 mist", &TTSOptions{ModelID: ModelIDMist, SamplingRate: ptr(4000)}, ""},
+		{"sampling-rate 44100 mist", &TTSOptions{ModelID: ModelIDMist, SamplingRate: ptr(44100)}, ""},
+		// SamplingRate - mist invalid
+		{"sampling-rate 3999 mist", &TTSOptions{ModelID: ModelIDMist, SamplingRate: ptr(3999)}, "between 4000 and 44100"},
+		{"sampling-rate 44101 mist", &TTSOptions{ModelID: ModelIDMist, SamplingRate: ptr(44101)}, "between 4000 and 44100"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateModelParams(tt.opts)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tt.wantErr)
+				} else if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
+				}
+			}
+		})
+	}
+}
+
+func TestTTS_SerializesNewParams(t *testing.T) {
+	var captured TTSRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("audio"))
+	}))
+	defer server.Close()
+
+	os.Setenv("RIME_API_URL", server.URL)
+	defer os.Unsetenv("RIME_API_URL")
+
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
+	opts := &TTSOptions{
+		Speaker:           "astra",
+		ModelID:           ModelIDArcana,
+		Temperature:       ptr(0.7),
+		TopP:              ptr(0.9),
+		RepetitionPenalty: ptr(1.3),
+		MaxTokens:         ptr(800),
+		SamplingRate:      ptr(24000),
+		SpeedAlpha:        ptr(1.2),
+	}
+	_, err := client.TTS("hello", opts)
+	if err != nil {
+		t.Fatalf("TTS failed: %v", err)
+	}
+
+	if captured.Temperature == nil || *captured.Temperature != 0.7 {
+		t.Errorf("expected Temperature=0.7, got %v", captured.Temperature)
+	}
+	if captured.TopP == nil || *captured.TopP != 0.9 {
+		t.Errorf("expected TopP=0.9, got %v", captured.TopP)
+	}
+	if captured.RepetitionPenalty == nil || *captured.RepetitionPenalty != 1.3 {
+		t.Errorf("expected RepetitionPenalty=1.3, got %v", captured.RepetitionPenalty)
+	}
+	if captured.MaxTokens == nil || *captured.MaxTokens != 800 {
+		t.Errorf("expected MaxTokens=800, got %v", captured.MaxTokens)
+	}
+	if captured.SamplingRate == nil || *captured.SamplingRate != 24000 {
+		t.Errorf("expected SamplingRate=24000, got %v", captured.SamplingRate)
+	}
+	if captured.SpeedAlpha == nil || *captured.SpeedAlpha != 1.2 {
+		t.Errorf("expected SpeedAlpha=1.2, got %v", captured.SpeedAlpha)
+	}
+}
+
+func TestTTSStream_SerializesNewParams(t *testing.T) {
+	var captured TTSRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&captured); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("mp3data"))
+	}))
+	defer server.Close()
+
+	os.Setenv("RIME_API_URL", server.URL)
+	defer os.Unsetenv("RIME_API_URL")
+
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
+	opts := &TTSOptions{
+		Speaker:                  "astra",
+		ModelID:                  ModelIDMistV2,
+		SamplingRate:             ptr(16000),
+		SpeedAlpha:               ptr(0.8),
+		PauseBetweenBrackets:     ptr(true),
+		PhonemizeBetweenBrackets: ptr(false),
+		InlineSpeedAlpha:         ptr("1.0,1.2"),
+		NoTextNormalization:      ptr(true),
+		SaveOovs:                 ptr(false),
+	}
+	result, err := client.TTSStream("hello", opts)
+	if err != nil {
+		t.Fatalf("TTSStream failed: %v", err)
+	}
+	result.Body.Close()
+
+	if captured.SamplingRate == nil || *captured.SamplingRate != 16000 {
+		t.Errorf("expected SamplingRate=16000, got %v", captured.SamplingRate)
+	}
+	if captured.SpeedAlpha == nil || *captured.SpeedAlpha != 0.8 {
+		t.Errorf("expected SpeedAlpha=0.8, got %v", captured.SpeedAlpha)
+	}
+	if captured.PauseBetweenBrackets == nil || *captured.PauseBetweenBrackets != true {
+		t.Errorf("expected PauseBetweenBrackets=true, got %v", captured.PauseBetweenBrackets)
+	}
+	if captured.PhonemizeBetweenBrackets == nil {
+		t.Error("expected PhonemizeBetweenBrackets to be present, but it was omitted")
+	} else if *captured.PhonemizeBetweenBrackets != false {
+		t.Errorf("expected PhonemizeBetweenBrackets=false, got %v", *captured.PhonemizeBetweenBrackets)
+	}
+	if captured.InlineSpeedAlpha == nil || *captured.InlineSpeedAlpha != "1.0,1.2" {
+		t.Errorf("expected InlineSpeedAlpha=1.0,1.2, got %v", captured.InlineSpeedAlpha)
+	}
+	if captured.NoTextNormalization == nil || *captured.NoTextNormalization != true {
+		t.Errorf("expected NoTextNormalization=true, got %v", captured.NoTextNormalization)
+	}
+	if captured.SaveOovs == nil {
+		t.Error("expected SaveOovs to be present, but it was omitted")
+	} else if *captured.SaveOovs != false {
+		t.Errorf("expected SaveOovs=false, got %v", *captured.SaveOovs)
+	}
+}
+
+func TestTTS_UnsetParamsOmitted(t *testing.T) {
+	var rawBody []byte
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		rawBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("failed to read body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("audio"))
+	}))
+	defer server.Close()
+
+	os.Setenv("RIME_API_URL", server.URL)
+	defer os.Unsetenv("RIME_API_URL")
+
+	client := NewClient(ClientOptions{
+		APIKey:  "test-key",
+		Version: "1.0.0",
+	})
+	opts := &TTSOptions{
+		Speaker: "astra",
+		ModelID: ModelIDArcana,
+	}
+	_, err := client.TTS("hello", opts)
+	if err != nil {
+		t.Fatalf("TTS failed: %v", err)
+	}
+
+	body := string(rawBody)
+	for _, field := range []string{"temperature", "top_p", "repetition_penalty", "max_tokens", "samplingRate", "speedAlpha", "pauseBetweenBrackets"} {
+		if strings.Contains(body, field) {
+			t.Errorf("expected field %q to be omitted when not set, but found in body: %s", field, body)
+		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/rimelabs/rime-cli/internal/api"
 )
 
 func TestGenerateCurlCommand_Basic(t *testing.T) {
@@ -15,7 +17,7 @@ func TestGenerateCurlCommand_Basic(t *testing.T) {
 		APIURL:  "https://api.example.com",
 	}
 
-	cmd, err := generateCurlCommand(opts)
+	cmd, err := generateCurlCommand(opts, &api.TTSOptions{})
 	if err != nil {
 		t.Fatalf("generateCurlCommand failed: %v", err)
 	}
@@ -38,6 +40,12 @@ func TestGenerateCurlCommand_Basic(t *testing.T) {
 	if !strings.Contains(cmd, "$RIME_CLI_API_KEY") {
 		t.Error("curl command should use placeholder when showKey is false")
 	}
+	if !strings.Contains(cmd, "--output 'output.wav'") {
+		t.Error("curl command should contain --output flag")
+	}
+	if !strings.Contains(cmd, "--fail") {
+		t.Error("curl command should contain --fail flag")
+	}
 }
 
 func TestGenerateCurlCommand_Oneline(t *testing.T) {
@@ -49,7 +57,7 @@ func TestGenerateCurlCommand_Oneline(t *testing.T) {
 		APIURL:  "https://api.example.com",
 	}
 
-	cmd, err := generateCurlCommand(opts)
+	cmd, err := generateCurlCommand(opts, &api.TTSOptions{})
 	if err != nil {
 		t.Fatalf("generateCurlCommand failed: %v", err)
 	}
@@ -59,6 +67,43 @@ func TestGenerateCurlCommand_Oneline(t *testing.T) {
 	}
 	if !strings.Contains(cmd, "curl -X POST") {
 		t.Error("oneline mode should use -X POST format")
+	}
+	if !strings.Contains(cmd, "-o 'output.wav'") {
+		t.Error("oneline mode should contain -o flag")
+	}
+	if !strings.Contains(cmd, " -f ") {
+		t.Error("oneline mode should contain -f flag")
+	}
+}
+
+func TestAudioFormatToExt(t *testing.T) {
+	if ext := audioFormatToExt("audio/mp3"); ext != "mp3" {
+		t.Errorf("expected mp3, got %s", ext)
+	}
+	if ext := audioFormatToExt("audio/wav"); ext != "wav" {
+		t.Errorf("expected wav, got %s", ext)
+	}
+	if ext := audioFormatToExt(""); ext != "wav" {
+		t.Errorf("expected wav for unknown format, got %s", ext)
+	}
+}
+
+func TestGenerateCurlCommand_MP3Model(t *testing.T) {
+	opts := CurlOptions{
+		Text:    "test",
+		Speaker: "luna",
+		ModelID: "mistv2",
+		APIURL:  "https://api.example.com",
+	}
+	modelOpts := &api.TTSOptions{}
+
+	cmd, err := generateCurlCommand(opts, modelOpts)
+	if err != nil {
+		t.Fatalf("generateCurlCommand failed: %v", err)
+	}
+
+	if !strings.Contains(cmd, "--output 'output.mp3'") {
+		t.Error("mp3 model should produce --output output.mp3")
 	}
 }
 
@@ -92,5 +137,61 @@ func TestCurlCmd_InvalidLangWithoutText(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid language") {
 		t.Errorf("expected error about invalid language, got: %v", err)
+	}
+}
+
+func TestGenerateCurlCommand_NewParams(t *testing.T) {
+	temp := 0.7
+	topP := 0.9
+	opts := CurlOptions{
+		Text:    "hello",
+		Speaker: "astra",
+		ModelID: "arcana",
+		Lang:    "eng",
+		APIURL:  "https://api.example.com",
+	}
+	modelOpts := &api.TTSOptions{
+		Temperature: &temp,
+		TopP:        &topP,
+	}
+
+	curlCmd, err := generateCurlCommand(opts, modelOpts)
+	if err != nil {
+		t.Fatalf("generateCurlCommand failed: %v", err)
+	}
+
+	if !strings.Contains(curlCmd, "temperature") {
+		t.Error("curl command should contain temperature field")
+	}
+	if !strings.Contains(curlCmd, "top_p") {
+		t.Error("curl command should contain top_p field")
+	}
+}
+
+func TestGenerateCurlCommand_MistParams(t *testing.T) {
+	pause := true
+	speed := "1.0,1.2"
+	opts := CurlOptions{
+		Text:    "hello",
+		Speaker: "astra",
+		ModelID: "mistv2",
+		Lang:    "eng",
+		APIURL:  "https://api.example.com",
+	}
+	modelOpts := &api.TTSOptions{
+		PauseBetweenBrackets: &pause,
+		InlineSpeedAlpha:     &speed,
+	}
+
+	curlCmd, err := generateCurlCommand(opts, modelOpts)
+	if err != nil {
+		t.Fatalf("generateCurlCommand failed: %v", err)
+	}
+
+	if !strings.Contains(curlCmd, "pauseBetweenBrackets") {
+		t.Error("curl command should contain pauseBetweenBrackets field")
+	}
+	if !strings.Contains(curlCmd, "inlineSpeedAlpha") {
+		t.Error("curl command should contain inlineSpeedAlpha field")
 	}
 }

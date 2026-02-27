@@ -45,7 +45,7 @@ func TestTTS_Pipeline(t *testing.T) {
 		t.Fatalf("Failed to resolve config: %v", err)
 	}
 
-	client := api.NewClientWithOptions(api.ClientOptions{
+	client := api.NewClient(api.ClientOptions{
 		APIKey:           resolved.APIKey,
 		APIURL:           resolved.APIURL,
 		AuthHeaderPrefix: resolved.AuthHeaderPrefix,

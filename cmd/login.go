@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"strings"
 
+	"os"
+
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/rimelabs/rime-cli/internal/api"
 	"github.com/rimelabs/rime-cli/internal/auth"
 	"github.com/rimelabs/rime-cli/internal/config"
 	"github.com/rimelabs/rime-cli/internal/output/styles"
+	"github.com/rimelabs/rime-cli/internal/output/ui"
 )
 
 func isAuthError(err error) bool {
@@ -24,6 +28,9 @@ func NewLoginCmd() *cobra.Command {
 		Long:  "Opens your browser to authenticate with Rime and saves your API key locally",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				fmt.Println(ui.PaddedLogo())
+			}
 			fmt.Println("Opening your browser to authenticate...")
 			fmt.Println(styles.Dim("Waiting for authentication... (Ctrl+C to cancel)"))
 
@@ -33,7 +40,10 @@ func NewLoginCmd() *cobra.Command {
 			}
 
 			fmt.Println(styles.Dim("Verifying API key..."))
-			client := api.NewClient(apiKey, cmd.Root().Version)
+			client := api.NewClient(api.ClientOptions{
+				APIKey:  apiKey,
+				Version: cmd.Root().Version,
+			})
 			if err := client.ValidateAPIKey(); err != nil {
 				// 401 means the key itself is bad — don't save it
 				if isAuthError(err) {

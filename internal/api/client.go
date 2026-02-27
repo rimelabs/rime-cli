@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"runtime"
 	"sort"
 	"time"
 )
@@ -111,6 +110,23 @@ type TTSRequest struct {
 	Speaker string `json:"speaker"`
 	ModelID string `json:"modelId,omitempty"`
 	Lang    string `json:"lang,omitempty"`
+
+	// Arcana/ArcanaV2 specific
+	RepetitionPenalty *float64 `json:"repetition_penalty,omitempty"`
+	Temperature       *float64 `json:"temperature,omitempty"`
+	TopP              *float64 `json:"top_p,omitempty"`
+	MaxTokens         *int     `json:"max_tokens,omitempty"`
+
+	// Both model families
+	SamplingRate *int     `json:"samplingRate,omitempty"`
+	SpeedAlpha   *float64 `json:"speedAlpha,omitempty"`
+
+	// Mist/MistV2 specific
+	PauseBetweenBrackets     *bool   `json:"pauseBetweenBrackets,omitempty"`
+	PhonemizeBetweenBrackets *bool   `json:"phonemizeBetweenBrackets,omitempty"`
+	InlineSpeedAlpha         *string `json:"inlineSpeedAlpha,omitempty"`
+	NoTextNormalization      *bool   `json:"noTextNormalization,omitempty"`
+	SaveOovs                 *bool   `json:"saveOovs,omitempty"`
 }
 
 type TTSOptions struct {
@@ -118,10 +134,117 @@ type TTSOptions struct {
 	ModelID     string
 	Lang        string
 	AudioFormat string
+
+	// Arcana/ArcanaV2 specific
+	RepetitionPenalty *float64
+	Temperature       *float64
+	TopP              *float64
+	MaxTokens         *int
+
+	// Both model families
+	SamplingRate *int
+	SpeedAlpha   *float64
+
+	// Mist/MistV2 specific
+	PauseBetweenBrackets     *bool
+	PhonemizeBetweenBrackets *bool
+	InlineSpeedAlpha         *string
+	NoTextNormalization      *bool
+	SaveOovs                 *bool
 }
 
 func IsValidModelID(modelID string) bool {
 	return validModelIDs[modelID]
+}
+
+func IsArcanaModel(modelID string) bool {
+	return modelID == ModelIDArcana || modelID == ModelIDArcanaV2
+}
+
+func IsMistModel(modelID string) bool {
+	return modelID == ModelIDMist || modelID == ModelIDMistV2
+}
+
+var validArcanaRates = map[int]bool{
+	8000: true, 16000: true, 22050: true, 24000: true,
+	44100: true, 48000: true, 96000: true,
+}
+
+func ValidateModelParams(opts *TTSOptions) error {
+	if opts == nil {
+		return nil
+	}
+	modelID := opts.ModelID
+
+	// Arcana-only params
+	if opts.Temperature != nil {
+		if !IsArcanaModel(modelID) {
+			return fmt.Errorf("--temperature is only supported for arcana/arcanav2 models")
+		}
+		if *opts.Temperature < 0 || *opts.Temperature > 1 {
+			return fmt.Errorf("--temperature must be between 0 and 1, got %g", *opts.Temperature)
+		}
+	}
+	if opts.TopP != nil {
+		if !IsArcanaModel(modelID) {
+			return fmt.Errorf("--top-p is only supported for arcana/arcanav2 models")
+		}
+		if *opts.TopP < 0 || *opts.TopP > 1 {
+			return fmt.Errorf("--top-p must be between 0 and 1, got %g", *opts.TopP)
+		}
+	}
+	if opts.RepetitionPenalty != nil {
+		if !IsArcanaModel(modelID) {
+			return fmt.Errorf("--repetition-penalty is only supported for arcana/arcanav2 models")
+		}
+		if *opts.RepetitionPenalty < 1 || *opts.RepetitionPenalty > 2 {
+			return fmt.Errorf("--repetition-penalty must be between 1 and 2, got %g", *opts.RepetitionPenalty)
+		}
+	}
+	if opts.MaxTokens != nil {
+		if !IsArcanaModel(modelID) {
+			return fmt.Errorf("--max-tokens is only supported for arcana/arcanav2 models")
+		}
+		if *opts.MaxTokens < 200 || *opts.MaxTokens > 5000 {
+			return fmt.Errorf("--max-tokens must be between 200 and 5000, got %d", *opts.MaxTokens)
+		}
+	}
+
+	// Mist-only params
+	if opts.PauseBetweenBrackets != nil && !IsMistModel(modelID) {
+		return fmt.Errorf("--pause-between-brackets is only supported for mist/mistv2 models")
+	}
+	if opts.PhonemizeBetweenBrackets != nil && !IsMistModel(modelID) {
+		return fmt.Errorf("--phonemize-between-brackets is only supported for mist/mistv2 models")
+	}
+	if opts.InlineSpeedAlpha != nil && !IsMistModel(modelID) {
+		return fmt.Errorf("--inline-speed-alpha is only supported for mist/mistv2 models")
+	}
+	if opts.NoTextNormalization != nil && !IsMistModel(modelID) {
+		return fmt.Errorf("--no-text-normalization is only supported for mist/mistv2 models")
+	}
+	if opts.SaveOovs != nil && !IsMistModel(modelID) {
+		return fmt.Errorf("--save-oovs is only supported for mist/mistv2 models")
+	}
+
+	// Shared params with model-specific validation
+	if opts.SpeedAlpha != nil && *opts.SpeedAlpha <= 0 {
+		return fmt.Errorf("--speed-alpha must be greater than 0, got %g", *opts.SpeedAlpha)
+	}
+	if opts.SamplingRate != nil {
+		rate := *opts.SamplingRate
+		if IsArcanaModel(modelID) {
+			if !validArcanaRates[rate] {
+				return fmt.Errorf("--sampling-rate for arcana/arcanav2 must be one of 8000, 16000, 22050, 24000, 44100, 48000, 96000; got %d", rate)
+			}
+		} else if IsMistModel(modelID) {
+			if rate < 4000 || rate > 44100 {
+				return fmt.Errorf("--sampling-rate for mist/mistv2 must be between 4000 and 44100, got %d", rate)
+			}
+		}
+	}
+
+	return nil
 }
 
 func GetAudioFormat(modelID string) string {
@@ -152,27 +275,8 @@ type ClientOptions struct {
 	Version          string
 }
 
-func NewClient(apiKey string, version string, baseURL ...string) *Client {
-	userAgent := fmt.Sprintf("rime-cli/%s (%s/%s)", version, runtime.GOOS, runtime.GOARCH)
-	url := GetAPIURL()
-	if len(baseURL) > 0 && baseURL[0] != "" {
-		url = baseURL[0]
-	}
-	authPrefix := "Bearer"
-	if prefix := os.Getenv("RIME_AUTH_HEADER_PREFIX"); prefix != "" {
-		authPrefix = prefix
-	}
-	return &Client{
-		baseURL:          url,
-		apiKey:           apiKey,
-		authHeaderPrefix: authPrefix,
-		userAgent:        userAgent,
-		client:           &http.Client{},
-	}
-}
-
-func NewClientWithOptions(opts ClientOptions) *Client {
-	userAgent := fmt.Sprintf("rime-cli/%s (%s/%s)", opts.Version, runtime.GOOS, runtime.GOARCH)
+func NewClient(opts ClientOptions) *Client {
+	userAgent := UserAgent(opts.Version)
 	url := opts.APIURL
 	if url == "" {
 		url = GetAPIURL()
@@ -204,12 +308,27 @@ func (c *Client) TTS(text string, opts *TTSOptions) ([]byte, error) {
 	if !IsValidModelID(opts.ModelID) {
 		return nil, fmt.Errorf("invalid modelId: %s (valid options: %s, %s, %s, %s)", opts.ModelID, ModelIDArcana, ModelIDArcanaV2, ModelIDMistV2, ModelIDMist)
 	}
+	if err := ValidateModelParams(opts); err != nil {
+		return nil, err
+	}
 
 	reqBody := TTSRequest{
 		Text:    text,
 		Speaker: opts.Speaker,
 		ModelID: opts.ModelID,
 		Lang:    opts.Lang,
+
+		RepetitionPenalty:        opts.RepetitionPenalty,
+		Temperature:              opts.Temperature,
+		TopP:                     opts.TopP,
+		MaxTokens:                opts.MaxTokens,
+		SamplingRate:             opts.SamplingRate,
+		SpeedAlpha:               opts.SpeedAlpha,
+		PauseBetweenBrackets:     opts.PauseBetweenBrackets,
+		PhonemizeBetweenBrackets: opts.PhonemizeBetweenBrackets,
+		InlineSpeedAlpha:         opts.InlineSpeedAlpha,
+		NoTextNormalization:      opts.NoTextNormalization,
+		SaveOovs:                 opts.SaveOovs,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -278,12 +397,27 @@ func (c *Client) TTSStream(text string, opts *TTSOptions) (*TTSStreamResult, err
 	if !IsValidModelID(opts.ModelID) {
 		return nil, fmt.Errorf("invalid modelId: %s (modelId should be one of: %s, %s, %s, %s)", opts.ModelID, ModelIDArcana, ModelIDArcanaV2, ModelIDMistV2, ModelIDMist)
 	}
+	if err := ValidateModelParams(opts); err != nil {
+		return nil, err
+	}
 
 	reqBody := TTSRequest{
 		Text:    text,
 		Speaker: opts.Speaker,
 		ModelID: opts.ModelID,
 		Lang:    opts.Lang,
+
+		RepetitionPenalty:        opts.RepetitionPenalty,
+		Temperature:              opts.Temperature,
+		TopP:                     opts.TopP,
+		MaxTokens:                opts.MaxTokens,
+		SamplingRate:             opts.SamplingRate,
+		SpeedAlpha:               opts.SpeedAlpha,
+		PauseBetweenBrackets:     opts.PauseBetweenBrackets,
+		PhonemizeBetweenBrackets: opts.PhonemizeBetweenBrackets,
+		InlineSpeedAlpha:         opts.InlineSpeedAlpha,
+		NoTextNormalization:      opts.NoTextNormalization,
+		SaveOovs:                 opts.SaveOovs,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)

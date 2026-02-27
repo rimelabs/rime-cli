@@ -25,12 +25,31 @@ type CurlOptions struct {
 	AuthPrefix string
 }
 
-func generateCurlCommand(opts CurlOptions) (string, error) {
+func audioFormatToExt(acceptHeader string) string {
+	if acceptHeader == "audio/mp3" {
+		return "mp3"
+	}
+	return "wav"
+}
+
+func generateCurlCommand(opts CurlOptions, modelOpts *api.TTSOptions) (string, error) {
 	reqBody := api.TTSRequest{
 		Text:    opts.Text,
 		Speaker: opts.Speaker,
 		ModelID: opts.ModelID,
 		Lang:    opts.Lang,
+
+		RepetitionPenalty:        modelOpts.RepetitionPenalty,
+		Temperature:              modelOpts.Temperature,
+		TopP:                     modelOpts.TopP,
+		MaxTokens:                modelOpts.MaxTokens,
+		SamplingRate:             modelOpts.SamplingRate,
+		SpeedAlpha:               modelOpts.SpeedAlpha,
+		PauseBetweenBrackets:     modelOpts.PauseBetweenBrackets,
+		PhonemizeBetweenBrackets: modelOpts.PhonemizeBetweenBrackets,
+		InlineSpeedAlpha:         modelOpts.InlineSpeedAlpha,
+		NoTextNormalization:      modelOpts.NoTextNormalization,
+		SaveOovs:                 modelOpts.SaveOovs,
 	}
 
 	var jsonBody []byte
@@ -61,18 +80,21 @@ func generateCurlCommand(opts CurlOptions) (string, error) {
 	}
 
 	acceptHeader := api.GetAudioFormat(opts.ModelID)
+	outputFile := "output." + audioFormatToExt(acceptHeader)
 
 	var b strings.Builder
 	jsonStr := strings.ReplaceAll(string(jsonBody), "'", "'\\''")
 
 	if opts.Oneline {
-		b.WriteString(fmt.Sprintf("curl -X POST '%s' -H 'Accept: %s' -H 'Authorization: %s %s' -H 'Content-Type: application/json' -d '%s'", apiURL, acceptHeader, authPrefix, authHeader, jsonStr))
+		b.WriteString(fmt.Sprintf("curl -X POST '%s' -H 'Accept: %s' -H 'Authorization: %s %s' -H 'Content-Type: application/json' -o '%s' -f -d '%s'", apiURL, acceptHeader, authPrefix, authHeader, outputFile, jsonStr))
 	} else {
 		b.WriteString("curl --request POST \\\n")
 		b.WriteString(fmt.Sprintf("  --url '%s' \\\n", apiURL))
 		b.WriteString(fmt.Sprintf("  --header 'Accept: %s' \\\n", acceptHeader))
 		b.WriteString(fmt.Sprintf("  --header 'Authorization: %s %s' \\\n", authPrefix, authHeader))
 		b.WriteString("  --header 'Content-Type: application/json' \\\n")
+		b.WriteString(fmt.Sprintf("  --output '%s' \\\n", outputFile))
+		b.WriteString("  --fail \\\n")
 		b.WriteString(fmt.Sprintf("  --data '%s'", jsonStr))
 	}
 
@@ -86,6 +108,7 @@ func NewCurlCmd() *cobra.Command {
 	var showKey bool
 	var oneline bool
 	var apiURL string
+	var modelParams modelParamFlags
 
 	cmd := &cobra.Command{
 		Use:   "curl TEXT",
@@ -158,7 +181,13 @@ Or provide your own text:
 				curlOpts.APIKey = resolved.APIKey
 			}
 
-			curlCmd, err := generateCurlCommand(curlOpts)
+			ttsOpts := &api.TTSOptions{ModelID: modelId}
+			modelParams.applyChanged(cmd.Flags(), ttsOpts)
+			if err := api.ValidateModelParams(ttsOpts); err != nil {
+				return err
+			}
+
+			curlCmd, err := generateCurlCommand(curlOpts, ttsOpts)
 			if err != nil {
 				return err
 			}
@@ -181,6 +210,8 @@ Or provide your own text:
 	cmd.Flags().BoolVar(&showKey, "show-key", false, "Include actual API key (default: $RIME_CLI_API_KEY)")
 	cmd.Flags().BoolVar(&oneline, "oneline", false, "Output as single line (easier to copy-paste)")
 	cmd.Flags().StringVar(&apiURL, "api-url", "", "API URL (default: $RIME_API_URL or https://users.rime.ai/v1/rime-tts)")
+
+	modelParams.register(cmd.Flags())
 
 	return cmd
 }

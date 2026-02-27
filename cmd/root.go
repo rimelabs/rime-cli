@@ -1,7 +1,13 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
+
+	"github.com/rimelabs/rime-cli/internal/output/ui"
 )
 
 var Quiet bool
@@ -18,6 +24,13 @@ func NewRootCmd(version string) *cobra.Command {
 		Long:          "Command-line interface for Rime text-to-speech synthesis",
 		Version:       version,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := cmd.Help()
+			if term.IsTerminal(int(os.Stdout.Fd())) {
+				fmt.Println(ui.PaddedLogo())
+			}
+			return err
+		},
 	}
 
 	root.PersistentFlags().BoolVarP(&Quiet, "quiet", "q", false, "Suppress non-essential output")
@@ -34,6 +47,7 @@ func NewRootCmd(version string) *cobra.Command {
 	root.AddCommand(NewUninstallCmd())
 	root.AddCommand(NewConfigCmd())
 	root.AddCommand(NewSpeedtestCmd())
+	root.AddCommand(NewUsageCmd())
 
 	return root
 }

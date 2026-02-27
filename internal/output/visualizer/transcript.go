@@ -15,7 +15,7 @@ const (
 
 var (
 	transcriptDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	transcriptBrightStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true)
+	transcriptBrightStyle = lipgloss.NewStyle()
 )
 
 type Transcript struct {

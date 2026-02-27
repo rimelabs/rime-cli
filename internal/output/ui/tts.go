@@ -77,6 +77,11 @@ type TTSQuitMsg struct{}
 
 func NewTTSModel(text string, opts *api.TTSOptions, output string, shouldPlay bool, version string, baseURL string, configEnv string, configFile string) TTSModel {
 	predictedDuration := visualizer.EstimateDurationFromText(text)
+	termWidth := GetTerminalWidth()
+	if termWidth > 80 {
+		termWidth = 80
+	}
+	rightContentWidth := termWidth - BoxOverhead
 	return TTSModel{
 		text:       text,
 		opts:       opts,
@@ -87,9 +92,9 @@ func NewTTSModel(text string, opts *api.TTSOptions, output string, shouldPlay bo
 		configEnv:  configEnv,
 		configFile: configFile,
 		state:      TTSStateConnecting,
-		waveform:   visualizer.NewWaveform(),
+		waveform:   visualizer.NewWaveformWithWidth(rightContentWidth),
 		transcript: visualizer.NewTranscript(text, predictedDuration),
-		termWidth:  GetTerminalWidth(),
+		termWidth:  termWidth,
 	}
 }
 
@@ -223,77 +228,43 @@ func (m TTSModel) View() string {
 		b.WriteString(" Connecting...")
 
 	case TTSStatePlaying:
-		separator := RenderSeparator(m.termWidth)
-
-		b.WriteString(separator)
-		b.WriteString("\n")
-		b.WriteString(HeaderStyle.Render(fmt.Sprintf("Rime TTS: %s (%s) %s", spk, modelId, lang)))
-		b.WriteString("\n")
-
-		if m.transcript != nil {
-			b.WriteString(m.transcript.Render())
-			b.WriteString("\n")
-		}
-
 		elapsed := time.Since(m.playStart)
-		if m.audioDur > 0 {
-			b.WriteString(DimStyle.Render(fmt.Sprintf("[%s / %s]", formatters.FormatDuration(elapsed), formatters.FormatDuration(m.audioDur))))
-		} else {
-			b.WriteString(DimStyle.Render(fmt.Sprintf("[%s]", formatters.FormatDuration(elapsed))))
-		}
-		b.WriteString("\n")
-		b.WriteString(m.waveform.RenderTop())
-		b.WriteString("\n")
-		b.WriteString(m.waveform.RenderBot())
-		b.WriteString("\n")
-		b.WriteString("\n")
-		b.WriteString(separator)
-		b.WriteString("\n")
+		header := RenderLabeledHeader(spk, modelId, lang)
+		w := m.waveform.Width()
+		rightLines := RenderRightPanel(header, w, m.transcript, formatters.FormatDuration(elapsed), "", m.waveform)
+		b.WriteString(RenderBoxLayout(w, rightLines))
 
 	case TTSStateDone:
-		separator := RenderSeparator(m.termWidth)
-
-		b.WriteString(separator)
-		b.WriteString("\n")
-		b.WriteString(HeaderStyle.Render(fmt.Sprintf("Rime TTS: %s (%s) %s", spk, modelId, lang)))
-		b.WriteString("\n")
-
-		if m.transcript != nil {
-			b.WriteString(m.transcript.Render())
-			b.WriteString("\n")
-		}
-
+		header := RenderLabeledHeader(spk, modelId, lang)
+		var elapsedStr string
 		if m.audioDur > 0 {
-			b.WriteString(DimStyle.Render(fmt.Sprintf("[%s / %s]", formatters.FormatDuration(m.audioDur), formatters.FormatDuration(m.audioDur))))
+			elapsedStr = formatters.FormatDuration(m.audioDur)
 		} else {
-			elapsed := time.Since(m.playStart)
-			b.WriteString(DimStyle.Render(fmt.Sprintf("[%s]", formatters.FormatDuration(elapsed))))
+			elapsedStr = formatters.FormatDuration(time.Since(m.playStart))
 		}
-		b.WriteString("\n")
+
+		var rightContentWidth int
 		if m.waveform != nil {
-			b.WriteString(m.waveform.RenderTop())
-			b.WriteString("\n")
-			b.WriteString(m.waveform.RenderBot())
-			b.WriteString("\n")
+			rightContentWidth = m.waveform.Width()
+		} else {
+			rightContentWidth = m.termWidth - BoxOverhead
 		}
-		b.WriteString("\n")
-		b.WriteString(separator)
-		b.WriteString("\n")
+
+		rightLines := RenderRightPanel(header, rightContentWidth, m.transcript, elapsedStr, "", m.waveform)
+		b.WriteString(RenderBoxLayout(rightContentWidth, rightLines))
 
 		if m.output != "" && m.output != "-" {
-			b.WriteString(styles.Successf("Audio saved to %s", m.output))
-			b.WriteString("\n")
+			b.WriteString(styles.Successf("Audio saved to %s", m.output) + "\n")
 		}
+
 		size := 0
 		if m.audioBuf != nil {
 			size = m.audioBuf.Len()
 		}
-		stats := fmt.Sprintf("TTFB: %dms | Duration: %s | Size: %s",
+		b.WriteString(DimStyle.Render(fmt.Sprintf("TTFB: %dms | Duration: %s | Size: %s",
 			m.ttfb.Milliseconds(),
 			formatters.FormatDuration(m.audioDur),
-			formatters.FormatBytes(size))
-		b.WriteString(DimStyle.Render(stats))
-		b.WriteString("\n")
+			formatters.FormatBytes(size))) + "\n")
 	}
 
 	return b.String()
@@ -317,7 +288,7 @@ func (m *TTSModel) startStreaming() tea.Cmd {
 			return StreamStartedMsg{Err: err}
 		}
 
-		client := api.NewClientWithOptions(api.ClientOptions{
+		client := api.NewClient(api.ClientOptions{
 			APIKey:           resolved.APIKey,
 			APIURL:           resolved.APIURL,
 			AuthHeaderPrefix: resolved.AuthHeaderPrefix,

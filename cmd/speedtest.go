@@ -78,7 +78,7 @@ func NewSpeedtestCmd() *cobra.Command {
 					continue
 				}
 
-				client := api.NewClientWithOptions(api.ClientOptions{
+				client := api.NewClient(api.ClientOptions{
 					APIKey:           env.GetAPIKey(),
 					APIURL:           env.APIURL,
 					AuthHeaderPrefix: getAuthPrefix(env),

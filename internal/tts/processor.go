@@ -58,7 +58,7 @@ func RunNonInteractive(opts RunOptions) error {
 		return err
 	}
 
-	client := api.NewClientWithOptions(api.ClientOptions{
+	client := api.NewClient(api.ClientOptions{
 		APIKey:           resolved.APIKey,
 		APIURL:           resolved.APIURL,
 		AuthHeaderPrefix: resolved.AuthHeaderPrefix,

@@ -71,10 +71,15 @@ type PlayTickMsg time.Time
 type PlayQuitMsg struct{}
 
 func NewPlayModel(filepath string) PlayModel {
+	termWidth := GetTerminalWidth()
+	if termWidth > 80 {
+		termWidth = 80
+	}
+	rightContentWidth := termWidth - BoxOverhead
 	return PlayModel{
 		filepath: filepath,
 		state:    PlayStateLoading,
-		waveform: visualizer.NewWaveform(),
+		waveform: visualizer.NewWaveformWithWidth(rightContentWidth),
 	}
 }
 
@@ -211,70 +216,24 @@ func (m PlayModel) View() string {
 		b.WriteString(Spinner[m.frame%len(Spinner)])
 		b.WriteString(" Loading...")
 
-	case PlayStatePlaying:
-		width := GetTerminalWidth()
-		separator := RenderSeparator(width)
-
-		b.WriteString(separator)
-		b.WriteString("\n")
-
+	case PlayStatePlaying, PlayStateDone:
+		var header string
 		if m.hasComment {
-			header := fmt.Sprintf("Rime TTS [%s-%s-%s]", m.parsedComment.Speaker, m.parsedComment.ModelID, m.parsedComment.Language)
-			b.WriteString(HeaderStyle.Render(header))
-			b.WriteString("\n")
+			header = RenderLabeledHeader(m.parsedComment.Speaker, m.parsedComment.ModelID, m.parsedComment.Language)
 		} else {
-			b.WriteString(HeaderStyle.Render(m.filepath))
-			b.WriteString("\n")
+			header = HeaderStyle.Render(m.filepath)
 		}
 
-		if m.transcript != nil {
-			b.WriteString(m.transcript.Render())
-			b.WriteString("\n")
-		}
-
-		elapsed := time.Since(m.playStart)
-		b.WriteString(DimStyle.Render(fmt.Sprintf("[%s / %s]", formatters.FormatDuration(elapsed), formatters.FormatDuration(m.audioDur))))
-		b.WriteString("\n")
-
-		b.WriteString(m.waveform.RenderTop())
-		b.WriteString("\n")
-		b.WriteString(m.waveform.RenderBot())
-		b.WriteString("\n")
-		b.WriteString("\n")
-		b.WriteString(separator)
-		b.WriteString("\n")
-
-	case PlayStateDone:
-		width := GetTerminalWidth()
-		separator := RenderSeparator(width)
-
-		b.WriteString(separator)
-		b.WriteString("\n")
-
-		if m.hasComment {
-			header := fmt.Sprintf("Rime TTS [%s-%s-%s]", m.parsedComment.Speaker, m.parsedComment.ModelID, m.parsedComment.Language)
-			b.WriteString(HeaderStyle.Render(header))
-			b.WriteString("\n")
+		var elapsedStr string
+		if m.state == PlayStateDone {
+			elapsedStr = formatters.FormatDuration(m.audioDur)
 		} else {
-			b.WriteString(HeaderStyle.Render(m.filepath))
-			b.WriteString("\n")
+			elapsedStr = formatters.FormatDuration(time.Since(m.playStart))
 		}
 
-		if m.transcript != nil {
-			b.WriteString(m.transcript.Render())
-			b.WriteString("\n")
-		}
-
-		b.WriteString(DimStyle.Render(fmt.Sprintf("[%s / %s]", formatters.FormatDuration(m.audioDur), formatters.FormatDuration(m.audioDur))))
-		b.WriteString("\n")
-
-		b.WriteString(m.waveform.RenderTop())
-		b.WriteString("\n")
-		b.WriteString(m.waveform.RenderBot())
-		b.WriteString("\n")
-		b.WriteString("\n")
-		b.WriteString(separator)
-		b.WriteString("\n")
+		w := m.waveform.Width()
+		rightLines := RenderRightPanel(header, w, m.transcript, elapsedStr, "", m.waveform)
+		b.WriteString(RenderBoxLayout(w, rightLines))
 	}
 
 	return b.String()

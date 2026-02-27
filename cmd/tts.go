@@ -26,6 +26,7 @@ func NewTTSCmd() *cobra.Command {
 	var lang string
 	var format string
 	var apiURL string
+	var modelParams modelParamFlags
 
 	cmd := &cobra.Command{
 		Use:   "tts TEXT",
@@ -87,6 +88,10 @@ The CLI handles format detection, metadata embedding, and playback for both form
 				Lang:        lang,
 				AudioFormat: audioFormat,
 			}
+			modelParams.applyChanged(cmd.Flags(), opts)
+			if err := api.ValidateModelParams(opts); err != nil {
+				return err
+			}
 
 			if output == "-" {
 				resolved, err := config.ResolveConfigWithOptions(config.ResolveOptions{
@@ -97,7 +102,7 @@ The CLI handles format detection, metadata embedding, and playback for both form
 				if err != nil {
 					return err
 				}
-				client := api.NewClientWithOptions(api.ClientOptions{
+				client := api.NewClient(api.ClientOptions{
 					APIKey:           resolved.APIKey,
 					APIURL:           resolved.APIURL,
 					AuthHeaderPrefix: resolved.AuthHeaderPrefix,
@@ -164,6 +169,8 @@ The CLI handles format detection, metadata embedding, and playback for both form
 	cmd.Flags().StringVarP(&lang, "lang", "l", "eng", "Language code (e.g., eng, es, fra). Valid codes depend on model.")
 	cmd.Flags().StringVarP(&format, "format", "f", "", "Audio format: wav or mp3 (overrides model default)")
 	cmd.Flags().StringVar(&apiURL, "api-url", "", "API URL (default: $RIME_API_URL or https://users.rime.ai/v1/rime-tts)")
+
+	modelParams.register(cmd.Flags())
 
 	return cmd
 }
