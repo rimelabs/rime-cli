@@ -105,7 +105,14 @@ func RenderRightPanel(header string, width int, transcript *visualizer.Transcrip
 
 	right.WriteString("\n")
 	if transcript != nil {
-		right.WriteString(DimStyle.Render("text: ") + transcript.Render() + "\n")
+		label := DimStyle.Render("text: ")
+		labelWidth := lipgloss.Width(label)
+		availableWidth := width - labelWidth - 2
+		if availableWidth < 0 {
+			availableWidth = 0
+		}
+		rendered := transcript.RenderSingleLine(availableWidth)
+		right.WriteString(label + rendered + "\n")
 		right.WriteString("\n")
 	}
 	if waveform != nil {

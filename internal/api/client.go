@@ -273,6 +273,7 @@ type ClientOptions struct {
 	APIURL           string
 	AuthHeaderPrefix string
 	Version          string
+	Timeout          time.Duration
 }
 
 func NewClient(opts ClientOptions) *Client {
@@ -289,12 +290,16 @@ func NewClient(opts ClientOptions) *Client {
 			authPrefix = "Bearer"
 		}
 	}
+	httpClient := &http.Client{}
+	if opts.Timeout > 0 {
+		httpClient.Timeout = opts.Timeout
+	}
 	return &Client{
 		baseURL:          url,
 		apiKey:           opts.APIKey,
 		authHeaderPrefix: authPrefix,
 		userAgent:        userAgent,
-		client:           &http.Client{},
+		client:           httpClient,
 	}
 }
 

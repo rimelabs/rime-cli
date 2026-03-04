@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -19,8 +21,86 @@ func NewConfigCmd() *cobra.Command {
 		Short: "Manage configuration",
 	}
 	cmd.AddCommand(NewConfigInitCmd())
+	cmd.AddCommand(NewConfigAddCmd())
 	cmd.AddCommand(NewConfigListCmd())
 	cmd.AddCommand(NewConfigShowCmd())
+	cmd.AddCommand(NewConfigRmCmd())
+	cmd.AddCommand(NewConfigEditCmd())
+	return cmd
+}
+
+func NewConfigAddCmd() *cobra.Command {
+	var apiURL string
+	var apiKey string
+	var authPrefix string
+
+	cmd := &cobra.Command{
+		Use:   "add <name>",
+		Short: "Add a named environment to configuration",
+		Long:  "Interactively adds a named environment to ~/.rime/rime.toml",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			name := args[0]
+
+			if name == "default" {
+				return fmt.Errorf("cannot add an environment named %q; use 'rime config init' to modify the default", name)
+			}
+
+			isTerminal := term.IsTerminal(int(os.Stdin.Fd()))
+
+			reader := bufio.NewReader(os.Stdin)
+
+			if apiURL == "" {
+				if isTerminal {
+					fmt.Printf("API URL [https://users.rime.ai/v1/rime-tts]: ")
+					line, _ := reader.ReadString('\n')
+					if trimmed := strings.TrimSpace(line); trimmed != "" {
+						apiURL = trimmed
+					}
+				}
+				if apiURL == "" {
+					apiURL = "https://users.rime.ai/v1/rime-tts"
+				}
+			}
+
+			if apiKey == "" && isTerminal {
+				fmt.Print("API key (input hidden): ")
+				keyBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+				fmt.Println()
+				if err == nil {
+					apiKey = strings.TrimSpace(string(keyBytes))
+				}
+			}
+
+			if authPrefix == "" && isTerminal {
+				fmt.Print("Auth header prefix (optional, e.g. Bearer): ")
+				line, _ := reader.ReadString('\n')
+				authPrefix = strings.TrimSpace(line)
+			}
+
+			env := config.Environment{
+				APIURL: apiURL,
+			}
+			if apiKey != "" {
+				env.APIKey = &apiKey
+			}
+			if authPrefix != "" {
+				env.AuthHeaderPrefix = &authPrefix
+			}
+
+			if err := config.SaveEnvironment(name, env); err != nil {
+				return err
+			}
+
+			fmt.Println(styles.Successf("Added environment %q to config", name))
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&apiURL, "url", "", "API URL (default: https://users.rime.ai/v1/rime-tts)")
+	cmd.Flags().StringVar(&apiKey, "key", "", "API key")
+	cmd.Flags().StringVar(&authPrefix, "auth-prefix", "", "Auth header prefix (e.g. Bearer)")
 	return cmd
 }
 
@@ -241,6 +321,77 @@ func NewConfigShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&showKey, "show-key", false, "Show full API key")
 	cmd.Flags().StringVarP(&envName, "env", "e", "", "Environment to show")
 	return cmd
+}
+
+func NewConfigRmCmd() *cobra.Command {
+	var yes bool
+
+	cmd := &cobra.Command{
+		Use:   "rm <name>",
+		Short: "Remove a named environment from configuration",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			name := args[0]
+
+			if !yes && term.IsTerminal(int(os.Stdin.Fd())) {
+				fmt.Printf("Remove environment %q? [y/N]: ", name)
+				line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+				if strings.ToLower(strings.TrimSpace(line)) != "y" {
+					fmt.Println("Aborted.")
+					return nil
+				}
+			}
+
+			if err := config.RemoveEnvironment(name); err != nil {
+				return err
+			}
+			fmt.Println(styles.Successf("Removed environment %q", name))
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip confirmation prompt")
+	return cmd
+}
+
+func NewConfigEditCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "edit",
+		Short: "Open the configuration file in an editor",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cmd.SilenceUsage = true
+			path, err := config.ConfigFilePath()
+			if err != nil {
+				return err
+			}
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return fmt.Errorf("config file not found; run 'rime config init' first")
+			}
+
+			editor := os.Getenv("VISUAL")
+			if editor == "" {
+				editor = os.Getenv("EDITOR")
+			}
+			if editor == "" {
+				if p, err := exec.LookPath("nano"); err == nil {
+					editor = p
+				} else if p, err := exec.LookPath("vi"); err == nil {
+					editor = p
+				}
+			}
+			if editor == "" {
+				return fmt.Errorf("no editor found; set $VISUAL or $EDITOR")
+			}
+
+			c := exec.Command(editor, path)
+			c.Stdin = os.Stdin
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+			return c.Run()
+		},
+	}
 }
 
 func showConfigJSON(resolved *config.ResolvedConfig, showKey bool) error {

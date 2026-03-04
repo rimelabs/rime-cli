@@ -192,6 +192,9 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.waveform != nil {
 				m.waveform.SetProgress(1.0)
 			}
+			if m.transcript != nil {
+				m.transcript.SetElapsed(m.audioDur)
+			}
 			return m, playDelayedQuit()
 		default:
 		}

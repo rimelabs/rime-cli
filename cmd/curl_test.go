@@ -37,8 +37,8 @@ func TestGenerateCurlCommand_Basic(t *testing.T) {
 	if !strings.Contains(cmd, "https://api.example.com") {
 		t.Error("curl command should contain API URL")
 	}
-	if !strings.Contains(cmd, "$RIME_CLI_API_KEY") {
-		t.Error("curl command should use placeholder when showKey is false")
+	if !strings.Contains(cmd, "$(rime key)") {
+		t.Error("curl command should use $(rime key) shell substitution")
 	}
 	if !strings.Contains(cmd, "--output 'output.wav'") {
 		t.Error("curl command should contain --output flag")
@@ -165,6 +165,28 @@ func TestGenerateCurlCommand_NewParams(t *testing.T) {
 	}
 	if !strings.Contains(curlCmd, "top_p") {
 		t.Error("curl command should contain top_p field")
+	}
+}
+
+func TestGenerateCurlCommand_UsesRimeKeySubstitution(t *testing.T) {
+	opts := CurlOptions{
+		Text:    "hello",
+		Speaker: "astra",
+		ModelID: "arcana",
+		Lang:    "eng",
+		APIURL:  "https://api.example.com",
+	}
+
+	cmd, err := generateCurlCommand(opts, &api.TTSOptions{})
+	if err != nil {
+		t.Fatalf("generateCurlCommand failed: %v", err)
+	}
+
+	if !strings.Contains(cmd, "$(rime key)") {
+		t.Error("curl command should use $(rime key) shell substitution for auth")
+	}
+	if strings.Contains(cmd, "$RIME_CLI_API_KEY") {
+		t.Error("curl command should not use $RIME_CLI_API_KEY placeholder")
 	}
 }
 

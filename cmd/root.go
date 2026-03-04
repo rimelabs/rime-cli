@@ -41,6 +41,7 @@ func NewRootCmd(version string) *cobra.Command {
 	root.AddCommand(NewLoginCmd())
 	root.AddCommand(NewLogoutCmd())
 	root.AddCommand(NewCurlCmd())
+	root.AddCommand(NewKeyCmd())
 	root.AddCommand(NewTTSCmd())
 	root.AddCommand(NewHelloCmd())
 	root.AddCommand(NewPlayCmd())

@@ -410,3 +410,272 @@ func TestResolveConfigWithOptions_MissingCustomFile(t *testing.T) {
 		t.Errorf("Expected error to mention 'not found', got: %v", err)
 	}
 }
+
+func TestSaveEnvironment_NoConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	env := Environment{
+		APIURL: "https://staging.rime.ai/v1/rime-tts",
+	}
+	err := SaveEnvironment("staging", env)
+	if err == nil {
+		t.Fatal("Expected error when config file doesn't exist")
+	}
+	if !strings.Contains(err.Error(), "config init") {
+		t.Errorf("Expected error to mention 'config init', got: %v", err)
+	}
+}
+
+func TestSaveEnvironment_AddsNewEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	configPath, err := ConfigFilePath()
+	if err != nil {
+		t.Fatalf("ConfigFilePath failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	initialContent := `api_key = "global-key"
+api_url = "https://users.rime.ai/v1/rime-tts"
+`
+	if err := os.WriteFile(configPath, []byte(initialContent), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	apiKey := "staging-key"
+	prefix := "Bearer"
+	env := Environment{
+		APIURL:           "https://staging.rime.ai/v1/rime-tts",
+		APIKey:           &apiKey,
+		AuthHeaderPrefix: &prefix,
+	}
+	if err := SaveEnvironment("staging", env); err != nil {
+		t.Fatalf("SaveEnvironment failed: %v", err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("Expected config to exist")
+	}
+
+	saved, ok := cfg.Env["staging"]
+	if !ok {
+		t.Fatal("Expected 'staging' environment to exist")
+	}
+	if saved.APIURL != "https://staging.rime.ai/v1/rime-tts" {
+		t.Errorf("Expected APIURL 'https://staging.rime.ai/v1/rime-tts', got %q", saved.APIURL)
+	}
+	if saved.GetAPIKey() != "staging-key" {
+		t.Errorf("Expected APIKey 'staging-key', got %q", saved.GetAPIKey())
+	}
+	if saved.AuthHeaderPrefix == nil || *saved.AuthHeaderPrefix != "Bearer" {
+		t.Errorf("Expected AuthHeaderPrefix 'Bearer', got %v", saved.AuthHeaderPrefix)
+	}
+	// Global key should be preserved
+	if cfg.APIKey != "global-key" {
+		t.Errorf("Global API key should be preserved, got %q", cfg.APIKey)
+	}
+}
+
+func TestSaveEnvironment_OverwritesExistingEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	configPath, err := ConfigFilePath()
+	if err != nil {
+		t.Fatalf("ConfigFilePath failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	initialContent := `api_key = "global-key"
+api_url = "https://users.rime.ai/v1/rime-tts"
+
+[env.staging]
+api_url = "https://old-staging.rime.ai/v1/rime-tts"
+api_key = "old-key"
+`
+	if err := os.WriteFile(configPath, []byte(initialContent), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	newKey := "new-staging-key"
+	env := Environment{
+		APIURL: "https://new-staging.rime.ai/v1/rime-tts",
+		APIKey: &newKey,
+	}
+	if err := SaveEnvironment("staging", env); err != nil {
+		t.Fatalf("SaveEnvironment failed: %v", err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	saved, ok := cfg.Env["staging"]
+	if !ok {
+		t.Fatal("Expected 'staging' environment to exist")
+	}
+	if saved.APIURL != "https://new-staging.rime.ai/v1/rime-tts" {
+		t.Errorf("Expected updated APIURL, got %q", saved.APIURL)
+	}
+	if saved.GetAPIKey() != "new-staging-key" {
+		t.Errorf("Expected updated APIKey 'new-staging-key', got %q", saved.GetAPIKey())
+	}
+}
+
+func TestRemoveEnvironment_NoConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	err := RemoveEnvironment("staging")
+	if err == nil {
+		t.Fatal("Expected error when config file doesn't exist")
+	}
+	if !strings.Contains(err.Error(), "config init") {
+		t.Errorf("Expected error to mention 'config init', got: %v", err)
+	}
+}
+
+func TestRemoveEnvironment_RemovesEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	configPath, err := ConfigFilePath()
+	if err != nil {
+		t.Fatalf("ConfigFilePath failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	content := `api_key = "global-key"
+api_url = "https://users.rime.ai/v1/rime-tts"
+
+[env.staging]
+api_url = "https://staging.rime.ai/v1/rime-tts"
+
+[env.prod]
+api_url = "https://prod.rime.ai/v1/rime-tts"
+`
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	if err := RemoveEnvironment("staging"); err != nil {
+		t.Fatalf("RemoveEnvironment failed: %v", err)
+	}
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if _, ok := cfg.Env["staging"]; ok {
+		t.Error("Expected 'staging' environment to be removed")
+	}
+	if _, ok := cfg.Env["prod"]; !ok {
+		t.Error("Expected 'prod' environment to be preserved")
+	}
+	if cfg.APIKey != "global-key" {
+		t.Errorf("Expected global API key to be preserved, got %q", cfg.APIKey)
+	}
+}
+
+func TestRemoveEnvironment_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	configPath, err := ConfigFilePath()
+	if err != nil {
+		t.Fatalf("ConfigFilePath failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(`api_key = "k"`+"\n"), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	err = RemoveEnvironment("nonexistent")
+	if err == nil {
+		t.Fatal("Expected error for nonexistent environment")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected error to mention 'not found', got: %v", err)
+	}
+}
+
+func TestRemoveEnvironment_RejectsDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	configPath, err := ConfigFilePath()
+	if err != nil {
+		t.Fatalf("ConfigFilePath failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(`api_key = "k"`+"\n"), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	err = RemoveEnvironment("default")
+	if err == nil {
+		t.Fatal("Expected error when trying to remove default environment")
+	}
+	if !strings.Contains(err.Error(), "cannot remove the default") {
+		t.Errorf("Expected error about removing default, got: %v", err)
+	}
+}
+
+func TestSaveEnvironment_FilePermissions(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tmpDir)
+
+	configPath, err := ConfigFilePath()
+	if err != nil {
+		t.Fatalf("ConfigFilePath failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(configPath), 0700); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(`api_key = "k"`+"\n"), 0600); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	env := Environment{APIURL: "https://test.rime.ai/v1/rime-tts"}
+	if err := SaveEnvironment("test", env); err != nil {
+		t.Fatalf("SaveEnvironment failed: %v", err)
+	}
+
+	info, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatalf("Failed to stat config: %v", err)
+	}
+	if info.Mode().Perm()&0600 != 0600 {
+		t.Errorf("Expected 0600 permissions, got %v", info.Mode().Perm())
+	}
+}

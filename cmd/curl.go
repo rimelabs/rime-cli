@@ -3,11 +3,9 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
 	"github.com/rimelabs/rime-cli/internal/api"
 	"github.com/rimelabs/rime-cli/internal/config"
@@ -18,9 +16,7 @@ type CurlOptions struct {
 	Speaker    string
 	ModelID    string
 	Lang       string
-	ShowKey    bool
 	Oneline    bool
-	APIKey     string
 	APIURL     string
 	AuthPrefix string
 }
@@ -64,11 +60,6 @@ func generateCurlCommand(opts CurlOptions, modelOpts *api.TTSOptions) (string, e
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	authHeader := "$RIME_CLI_API_KEY"
-	if opts.ShowKey && opts.APIKey != "" {
-		authHeader = opts.APIKey
-	}
-
 	apiURL := opts.APIURL
 	if apiURL == "" {
 		apiURL = api.GetAPIURL()
@@ -86,12 +77,12 @@ func generateCurlCommand(opts CurlOptions, modelOpts *api.TTSOptions) (string, e
 	jsonStr := strings.ReplaceAll(string(jsonBody), "'", "'\\''")
 
 	if opts.Oneline {
-		b.WriteString(fmt.Sprintf("curl -X POST '%s' -H 'Accept: %s' -H 'Authorization: %s %s' -H 'Content-Type: application/json' -o '%s' -f -d '%s'", apiURL, acceptHeader, authPrefix, authHeader, outputFile, jsonStr))
+		b.WriteString(fmt.Sprintf("curl -X POST '%s' -H 'Accept: %s' -H \"Authorization: %s $(rime key)\" -H 'Content-Type: application/json' -o '%s' -f -d '%s'", apiURL, acceptHeader, authPrefix, outputFile, jsonStr))
 	} else {
 		b.WriteString("curl --request POST \\\n")
 		b.WriteString(fmt.Sprintf("  --url '%s' \\\n", apiURL))
 		b.WriteString(fmt.Sprintf("  --header 'Accept: %s' \\\n", acceptHeader))
-		b.WriteString(fmt.Sprintf("  --header 'Authorization: %s %s' \\\n", authPrefix, authHeader))
+		b.WriteString(fmt.Sprintf("  --header \"Authorization: %s $(rime key)\" \\\n", authPrefix))
 		b.WriteString("  --header 'Content-Type: application/json' \\\n")
 		b.WriteString(fmt.Sprintf("  --output '%s' \\\n", outputFile))
 		b.WriteString("  --fail \\\n")
@@ -105,7 +96,6 @@ func NewCurlCmd() *cobra.Command {
 	var spk string
 	var modelId string
 	var lang string
-	var showKey bool
 	var oneline bool
 	var apiURL string
 	var modelParams modelParamFlags
@@ -119,7 +109,7 @@ Run without arguments to see an example:
   rime curl
 
 For easy copy-paste (single line):
-  rime curl --oneline --show-key
+  rime curl --oneline
 
 Or provide your own text:
   rime curl "your text here" --speaker astra --model-id arcana`,
@@ -171,14 +161,9 @@ Or provide your own text:
 				Speaker:    spk,
 				ModelID:    modelId,
 				Lang:       lang,
-				ShowKey:    showKey,
 				Oneline:    oneline,
 				APIURL:     resolved.APIURL,
 				AuthPrefix: resolved.AuthHeaderPrefix,
-			}
-
-			if showKey {
-				curlOpts.APIKey = resolved.APIKey
 			}
 
 			ttsOpts := &api.TTSOptions{ModelID: modelId}
@@ -194,10 +179,6 @@ Or provide your own text:
 
 			fmt.Println(curlCmd)
 
-			if !showKey && term.IsTerminal(int(os.Stdout.Fd())) {
-				fmt.Fprintln(os.Stderr, "# Tip: use --show-key or export RIME_CLI_API_KEY")
-			}
-
 			return nil
 		},
 	}
@@ -207,7 +188,6 @@ Or provide your own text:
 	cmd.Flags().StringVar(&modelId, "modelId", "", "")
 	cmd.Flags().MarkHidden("modelId")
 	cmd.Flags().StringVarP(&lang, "lang", "l", "eng", "Language code (e.g., eng, es, fra). Valid codes depend on model.")
-	cmd.Flags().BoolVar(&showKey, "show-key", false, "Include actual API key (default: $RIME_CLI_API_KEY)")
 	cmd.Flags().BoolVar(&oneline, "oneline", false, "Output as single line (easier to copy-paste)")
 	cmd.Flags().StringVar(&apiURL, "api-url", "", "API URL (default: $RIME_API_URL or https://users.rime.ai/v1/rime-tts)")
 

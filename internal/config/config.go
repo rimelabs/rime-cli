@@ -131,6 +131,73 @@ func LoadConfigFromPath(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+func SaveEnvironment(name string, env Environment) error {
+	path, err := ConfigFilePath()
+	if err != nil {
+		return err
+	}
+
+	cfg, err := LoadConfigFromPath(path)
+	if err != nil {
+		return err
+	}
+	if cfg == nil {
+		return fmt.Errorf("config file not found; run 'rime config init' to create one")
+	}
+
+	if cfg.Env == nil {
+		cfg.Env = make(map[string]Environment)
+	}
+	cfg.Env[name] = env
+
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+func RemoveEnvironment(name string) error {
+	path, err := ConfigFilePath()
+	if err != nil {
+		return err
+	}
+
+	cfg, err := LoadConfigFromPath(path)
+	if err != nil {
+		return err
+	}
+	if cfg == nil {
+		return fmt.Errorf("config file not found; run 'rime config init' to create one")
+	}
+
+	if name == "default" {
+		return fmt.Errorf("cannot remove the default environment")
+	}
+
+	if _, ok := cfg.Env[name]; !ok {
+		return fmt.Errorf("environment %q not found", name)
+	}
+
+	delete(cfg.Env, name)
+
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Config) ResolveEnvironment(name string) (*Environment, error) {
 	if name == "" {
 		name = "default"
