@@ -1,5 +1,7 @@
 package visualizer
 
+import "math"
+
 // Braille waveform visualization using two rows of characters.
 //
 // Top row: bars grow UPWARD from bottom edge
@@ -92,6 +94,42 @@ func QuantizeAmplitude(amp float64) int {
 		return 4
 	}
 	return int(amp * 5)
+}
+
+// QuantizeAmplitudeSqrt converts amplitude (0.0-1.0) to level (0-4) using sqrt scaling,
+// matching the perceptual curve used by the single-line renderer.
+func QuantizeAmplitudeSqrt(amp float64) int {
+	if amp <= 0 {
+		return 0
+	}
+	v := math.Sqrt(amp)
+	switch {
+	case v < 0.15:
+		return 0
+	case v < 0.35:
+		return 1
+	case v < 0.55:
+		return 2
+	case v < 0.75:
+		return 3
+	default:
+		return 4
+	}
+}
+
+// SingleLineChar returns a single-line character for the given amplitude level.
+// Maps levels 0-4 to 4-character set: space, -, ⠶, ⣿.
+func SingleLineChar(level int) rune {
+	switch clamp(level) {
+	case 0:
+		return ' '
+	case 1:
+		return '-'
+	case 2:
+		return '⠶'
+	default: // 3 or 4
+		return '⣿'
+	}
 }
 
 func clamp(v int) int {

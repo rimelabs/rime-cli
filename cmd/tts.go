@@ -13,7 +13,6 @@ import (
 	"github.com/rimelabs/rime-cli/internal/audio/metadata"
 	"github.com/rimelabs/rime-cli/internal/audio/playback"
 	"github.com/rimelabs/rime-cli/internal/config"
-	"github.com/rimelabs/rime-cli/internal/output/styles"
 	"github.com/rimelabs/rime-cli/internal/output/ui"
 	"github.com/rimelabs/rime-cli/internal/tts"
 )
@@ -139,11 +138,7 @@ The CLI handles format detection, metadata embedding, and playback for both form
 				return tts.RunNonInteractive(runOpts)
 			}
 
-			if output == "" && shouldPlay {
-				fmt.Fprintln(os.Stderr, styles.Dim("Playing audio (use -o to save)"))
-			}
-
-			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL, ConfigEnv, ConfigFile))
+			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL, ConfigEnv, ConfigFile, true))
 			m, err := p.Run()
 			if err != nil {
 				return err

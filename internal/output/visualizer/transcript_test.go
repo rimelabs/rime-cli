@@ -24,9 +24,9 @@ func TestNewTranscript(t *testing.T) {
 func TestTranscript_RenderEmpty(t *testing.T) {
 	tx := NewTranscript("", time.Second)
 
-	output := tx.Render()
+	output := tx.RenderSingleLine(80)
 	if output != "" {
-		t.Errorf("Render() with empty text = %q, expected empty", output)
+		t.Errorf("RenderSingleLine() with empty text = %q, expected empty", output)
 	}
 }
 
@@ -34,9 +34,9 @@ func TestTranscript_RenderFull(t *testing.T) {
 	tx := NewTranscript("hello world", time.Second)
 	tx.SetElapsed(time.Second)
 
-	output := tx.Render()
+	output := tx.RenderSingleLine(80)
 	if !strings.Contains(output, "hello") || !strings.Contains(output, "world") {
-		t.Errorf("Render() should contain words, got %q", output)
+		t.Errorf("RenderSingleLine() should contain words, got %q", output)
 	}
 }
 
@@ -44,9 +44,9 @@ func TestTranscript_RenderPartial(t *testing.T) {
 	tx := NewTranscript("hello world test", 2*time.Second)
 	tx.SetElapsed(time.Second)
 
-	output := tx.Render()
+	output := tx.RenderSingleLine(80)
 	if output == "" {
-		t.Error("Render() with partial progress should return non-empty")
+		t.Error("RenderSingleLine() with partial progress should return non-empty")
 	}
 }
 

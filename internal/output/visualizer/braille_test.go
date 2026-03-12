@@ -143,3 +143,53 @@ func TestQuantizeAmplitude_Levels(t *testing.T) {
 		}
 	}
 }
+
+func TestSingleLineChar_Level0(t *testing.T) {
+	ch := SingleLineChar(0)
+	if ch != ' ' {
+		t.Errorf("expected space for level 0, got %c", ch)
+	}
+}
+
+func TestSingleLineChar_Level1(t *testing.T) {
+	ch := SingleLineChar(1)
+	if ch != '-' {
+		t.Errorf("expected '-' for level 1, got %c", ch)
+	}
+}
+
+func TestSingleLineChar_Level2(t *testing.T) {
+	ch := SingleLineChar(2)
+	if ch != '⠶' {
+		t.Errorf("expected '⠶' for level 2, got %c", ch)
+	}
+}
+
+func TestSingleLineChar_Level3(t *testing.T) {
+	ch := SingleLineChar(3)
+	if ch != '⣿' {
+		t.Errorf("expected '⣿' for level 3, got %c", ch)
+	}
+}
+
+func TestSingleLineChar_Level4(t *testing.T) {
+	ch := SingleLineChar(4)
+	if ch != '⣿' {
+		t.Errorf("expected '⣿' for level 4, got %c", ch)
+	}
+}
+
+func TestSingleLineChar_OutOfBounds(t *testing.T) {
+	chNeg := SingleLineChar(-1)
+	chHigh := SingleLineChar(10)
+
+	chZero := SingleLineChar(0)
+	chMax := SingleLineChar(4)
+
+	if chNeg != chZero {
+		t.Errorf("SingleLineChar(-1) should clamp to 0, got %c", chNeg)
+	}
+	if chHigh != chMax {
+		t.Errorf("SingleLineChar(10) should clamp to 4, got %c", chHigh)
+	}
+}

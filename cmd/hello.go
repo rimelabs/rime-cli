@@ -34,14 +34,13 @@ func NewHelloCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "hello",
 		Short: "Quick demo with a friendly greeting",
-		Long:  "Plays a quick TTS demo using the Astra voice",
+		Long:  "Plays a quick TTS demo using the Vespera voice",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			greeting := getGreeting()
-			text := fmt.Sprintf("good %s from Rime AI!", greeting)
+			text := fmt.Sprintf("good %s, this is Vespera speaking", getGreeting())
 
 			opts := &api.TTSOptions{
-				Speaker: "astra",
+				Speaker: "vespera",
 				ModelID: "arcana",
 				Lang:    "eng",
 			}
@@ -68,7 +67,7 @@ func NewHelloCmd() *cobra.Command {
 				fmt.Fprintln(os.Stderr, styles.Dim("Playing audio (use -o to save)"))
 			}
 
-			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL, ConfigEnv, ConfigFile))
+			p := tea.NewProgram(ui.NewTTSModel(text, opts, output, shouldPlay, Version, apiURL, ConfigEnv, ConfigFile, false))
 			m, err := p.Run()
 			if err != nil {
 				return err

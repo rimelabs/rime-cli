@@ -16,10 +16,13 @@ var Spinner = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "
 var HeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("12"))
 var DimStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 
-func GetTerminalWidth() int {
+func GetTerminalWidth(minWidth, maxWidth int) int {
 	width, _, _ := term.GetSize(int(os.Stdout.Fd()))
-	if width < 40 {
-		return 80
+	if width < minWidth {
+		return minWidth
+	}
+	if maxWidth > 0 && width > maxWidth {
+		return maxWidth
 	}
 	return width
 }
@@ -120,4 +123,34 @@ func RenderRightPanel(header string, width int, transcript *visualizer.Transcrip
 		right.WriteString(waveform.RenderBot())
 	}
 	return strings.Split(right.String(), "\n")
+}
+
+const minimalIndent = "  "
+
+// RenderMinimalView renders the flat minimal UI (no box, no logo) used by tts and play.
+func RenderMinimalView(title string, waveform *visualizer.Waveform,
+	transcript *visualizer.Transcript, text string, termWidth int,
+	labels [][2]string, statsLine string) string {
+	var b strings.Builder
+	b.WriteString(HeaderStyle.Render(title) + "\n")
+	if waveform != nil {
+		b.WriteString(minimalIndent + DimStyle.Render("wave: ") + waveform.RenderSingle() + "\n")
+	}
+	if transcript != nil {
+		label := DimStyle.Render("text: ")
+		availableWidth := termWidth - lipgloss.Width(minimalIndent) - lipgloss.Width(label)
+		if availableWidth < 0 {
+			availableWidth = 0
+		}
+		b.WriteString(minimalIndent + label + transcript.RenderSingleLine(availableWidth) + "\n")
+	} else if text != "" {
+		b.WriteString(minimalIndent + DimStyle.Render("text: ") + text + "\n")
+	}
+	for _, pair := range labels {
+		b.WriteString(minimalIndent + DimStyle.Render(pair[0]+": ") + pair[1] + "\n")
+	}
+	if statsLine != "" {
+		b.WriteString(minimalIndent + statsLine + "\n")
+	}
+	return b.String()
 }

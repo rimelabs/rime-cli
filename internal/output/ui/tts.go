@@ -54,10 +54,12 @@ type TTSModel struct {
 	playStart   time.Time
 	audioDur    time.Duration
 
-	waveform   *visualizer.Waveform
-	transcript *visualizer.Transcript
-	frame      int
-	termWidth  int
+	waveform          *visualizer.Waveform
+	transcript        *visualizer.Transcript
+	frame             int
+	termWidth         int
+	rightContentWidth int
+	minimal           bool
 }
 
 type StreamStartedMsg struct {
@@ -75,26 +77,36 @@ type StreamStartedMsg struct {
 type TTSTickMsg time.Time
 type TTSQuitMsg struct{}
 
-func NewTTSModel(text string, opts *api.TTSOptions, output string, shouldPlay bool, version string, baseURL string, configEnv string, configFile string) TTSModel {
+func NewTTSModel(text string, opts *api.TTSOptions, output string, shouldPlay bool, version string, baseURL string, configEnv string, configFile string, minimal bool) TTSModel {
 	predictedDuration := visualizer.EstimateDurationFromText(text)
-	termWidth := GetTerminalWidth()
-	if termWidth > 80 {
-		termWidth = 80
+	var termWidth int
+	var rightContentWidth int
+	var waveform *visualizer.Waveform
+
+	if minimal {
+		termWidth = GetTerminalWidth(40, 0)
+		waveform = visualizer.NewWaveform(termWidth)
+	} else {
+		termWidth = GetTerminalWidth(40, 80)
+		rightContentWidth = termWidth - BoxOverhead
+		waveform = visualizer.NewWaveformTwoRow(rightContentWidth)
 	}
-	rightContentWidth := termWidth - BoxOverhead
+
 	return TTSModel{
-		text:       text,
-		opts:       opts,
-		output:     output,
-		shouldPlay: shouldPlay,
-		version:    version,
-		baseURL:    baseURL,
-		configEnv:  configEnv,
-		configFile: configFile,
-		state:      TTSStateConnecting,
-		waveform:   visualizer.NewWaveformWithWidth(rightContentWidth),
-		transcript: visualizer.NewTranscript(text, predictedDuration),
-		termWidth:  termWidth,
+		text:              text,
+		opts:              opts,
+		output:            output,
+		shouldPlay:        shouldPlay,
+		version:           version,
+		baseURL:           baseURL,
+		configEnv:         configEnv,
+		configFile:        configFile,
+		state:             TTSStateConnecting,
+		waveform:          waveform,
+		transcript:        visualizer.NewTranscript(text, predictedDuration),
+		termWidth:         termWidth,
+		rightContentWidth: rightContentWidth,
+		minimal:           minimal,
 	}
 }
 
@@ -134,15 +146,7 @@ func (m TTSModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.state == TTSStatePlaying {
 			if m.analyzer != nil {
-				amp := m.analyzer.Amplitude()
-				scaled := amp * 5.0
-				if amp > 0.01 && scaled < 0.2 {
-					scaled = 0.2
-				}
-				if scaled > 1.0 {
-					scaled = 1.0
-				}
-				m.waveform.AddSample(scaled)
+				m.waveform.AddSample(m.analyzer.Amplitude())
 			}
 			if m.transcript != nil {
 				elapsed := time.Since(m.playStart)
@@ -184,7 +188,7 @@ func (m TTSModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				samplesPerSecond := 20
 				if m.audioDur > 0 {
-					targetSamples := m.termWidth * 2
+					targetSamples := m.waveform.Width()
 					calculatedSamplesPerSecond := float64(targetSamples) / m.audioDur.Seconds()
 					if calculatedSamplesPerSecond > 0 {
 						samplesPerSecond = int(calculatedSamplesPerSecond)
@@ -196,8 +200,7 @@ func (m TTSModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				amps, err := analyze.AnalyzeAmplitudes(audioData, samplesPerSecond)
 				if err == nil && m.waveform != nil {
-					scaled := analyze.ScaleAmplitudes(amps, 5.0, 0.2)
-					m.waveform.SetSamples(scaled)
+					m.waveform.SetSamples(amps)
 					m.waveform.SetProgress(1.0)
 				}
 			}
@@ -224,47 +227,36 @@ func (m TTSModel) View() string {
 
 	switch m.state {
 	case TTSStateConnecting:
-		b.WriteString(Spinner[m.frame%len(Spinner)])
-		b.WriteString(" Connecting...")
+		b.WriteString(Spinner[m.frame%len(Spinner)] + " Connecting...\n")
 
-	case TTSStatePlaying:
-		elapsed := time.Since(m.playStart)
-		header := RenderLabeledHeader(spk, modelId, lang)
-		w := m.waveform.Width()
-		rightLines := RenderRightPanel(header, w, m.transcript, formatters.FormatDuration(elapsed), "", m.waveform)
-		b.WriteString(RenderBoxLayout(w, rightLines))
-
-	case TTSStateDone:
-		header := RenderLabeledHeader(spk, modelId, lang)
-		var elapsedStr string
-		if m.audioDur > 0 {
-			elapsedStr = formatters.FormatDuration(m.audioDur)
+	case TTSStatePlaying, TTSStateDone:
+		stats := m.buildStats()
+		statsLine := strings.Join(stats, DimStyle.Render(" | "))
+		if m.minimal {
+			labels := [][2]string{
+				{"model", modelId},
+				{"speaker", spk},
+				{"lang", lang},
+			}
+			b.WriteString(RenderMinimalView("Rime TTS", m.waveform, m.transcript, m.text, m.termWidth, labels, statsLine))
 		} else {
-			elapsedStr = formatters.FormatDuration(time.Since(m.playStart))
+			header := RenderLabeledHeader(spk, modelId, lang)
+			var elapsedStr string
+			if m.state == TTSStateDone && m.audioDur > 0 {
+				elapsedStr = formatters.FormatDuration(m.audioDur)
+			} else if !m.playStart.IsZero() {
+				elapsedStr = formatters.FormatDuration(time.Since(m.playStart))
+			}
+			rightLines := RenderRightPanel(header, m.rightContentWidth, m.transcript, elapsedStr, "", m.waveform)
+			b.WriteString(RenderBoxLayout(m.rightContentWidth, rightLines))
+			if len(stats) > 0 {
+				b.WriteString(statsLine + "\n")
+			}
 		}
 
-		var rightContentWidth int
-		if m.waveform != nil {
-			rightContentWidth = m.waveform.Width()
-		} else {
-			rightContentWidth = m.termWidth - BoxOverhead
-		}
-
-		rightLines := RenderRightPanel(header, rightContentWidth, m.transcript, elapsedStr, "", m.waveform)
-		b.WriteString(RenderBoxLayout(rightContentWidth, rightLines))
-
-		if m.output != "" && m.output != "-" {
+		if m.state == TTSStateDone && m.output != "" && m.output != "-" {
 			b.WriteString(styles.Successf("Audio saved to %s", m.output) + "\n")
 		}
-
-		size := 0
-		if m.audioBuf != nil {
-			size = m.audioBuf.Len()
-		}
-		b.WriteString(DimStyle.Render(fmt.Sprintf("TTFB: %dms | Duration: %s | Size: %s",
-			m.ttfb.Milliseconds(),
-			formatters.FormatDuration(m.audioDur),
-			formatters.FormatBytes(size))) + "\n")
 	}
 
 	return b.String()
@@ -400,6 +392,26 @@ func (m *TTSModel) finalize() tea.Cmd {
 		time.Sleep(500 * time.Millisecond)
 		return TTSQuitMsg{}
 	}
+}
+
+func (m TTSModel) buildStats() []string {
+	var stats []string
+	if m.ttfb > 0 {
+		stats = append(stats, DimStyle.Render("TTFB: ")+fmt.Sprintf("%dms", m.ttfb.Milliseconds()))
+	}
+	var dur time.Duration
+	if m.state == TTSStateDone && m.audioDur > 0 {
+		dur = m.audioDur
+	} else if !m.playStart.IsZero() {
+		dur = time.Since(m.playStart)
+	}
+	if dur > 0 {
+		stats = append(stats, DimStyle.Render("Duration: ")+formatters.FormatDuration(dur))
+	}
+	if m.audioBuf != nil && m.audioBuf.Len() > 0 {
+		stats = append(stats, DimStyle.Render("Size: ")+formatters.FormatBytes(m.audioBuf.Len()))
+	}
+	return stats
 }
 
 func ttsTick() tea.Cmd {

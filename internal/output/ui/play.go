@@ -49,6 +49,7 @@ type PlayModel struct {
 	waveform   *visualizer.Waveform
 	transcript *visualizer.Transcript
 	frame      int
+	termWidth  int
 
 	parsedComment *metadata.ParsedComment
 	hasComment    bool
@@ -71,15 +72,12 @@ type PlayTickMsg time.Time
 type PlayQuitMsg struct{}
 
 func NewPlayModel(filepath string) PlayModel {
-	termWidth := GetTerminalWidth()
-	if termWidth > 80 {
-		termWidth = 80
-	}
-	rightContentWidth := termWidth - BoxOverhead
+	termWidth := GetTerminalWidth(40, 0)
 	return PlayModel{
-		filepath: filepath,
-		state:    PlayStateLoading,
-		waveform: visualizer.NewWaveformWithWidth(rightContentWidth),
+		filepath:  filepath,
+		state:     PlayStateLoading,
+		waveform:  visualizer.NewWaveform(termWidth),
+		termWidth: termWidth,
 	}
 }
 
@@ -135,10 +133,9 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			audioDur = analyze.CalculateWavDuration(m.audioData)
 		}
 
-		termWidth := GetTerminalWidth()
 		samplesPerSecond := 20
 		if audioDur > 0 {
-			targetSamples := termWidth * 2
+			targetSamples := m.waveform.Width()
 			calculatedSamplesPerSecond := float64(targetSamples) / audioDur.Seconds()
 			if calculatedSamplesPerSecond > 0 {
 				samplesPerSecond = int(calculatedSamplesPerSecond)
@@ -150,8 +147,7 @@ func (m PlayModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		amps, err := analyze.AnalyzeAmplitudes(m.audioData, samplesPerSecond)
 		if err == nil {
-			scaled := analyze.ScaleAmplitudes(amps, 5.0, 0.2)
-			m.waveform.SetSamples(scaled)
+			m.waveform.SetSamples(amps)
 		}
 		return m, m.startPlayback()
 
@@ -220,23 +216,32 @@ func (m PlayModel) View() string {
 		b.WriteString(" Loading...")
 
 	case PlayStatePlaying, PlayStateDone:
-		var header string
+		var labels [][2]string
 		if m.hasComment {
-			header = RenderLabeledHeader(m.parsedComment.Speaker, m.parsedComment.ModelID, m.parsedComment.Language)
+			labels = [][2]string{
+				{"model", m.parsedComment.ModelID},
+				{"speaker", m.parsedComment.Speaker},
+				{"lang", m.parsedComment.Language},
+			}
 		} else {
-			header = HeaderStyle.Render(m.filepath)
+			labels = [][2]string{{"file", m.filepath}}
 		}
 
-		var elapsedStr string
+		var stats []string
+		var dur time.Duration
 		if m.state == PlayStateDone {
-			elapsedStr = formatters.FormatDuration(m.audioDur)
+			dur = m.audioDur
 		} else {
-			elapsedStr = formatters.FormatDuration(time.Since(m.playStart))
+			dur = time.Since(m.playStart)
 		}
-
-		w := m.waveform.Width()
-		rightLines := RenderRightPanel(header, w, m.transcript, elapsedStr, "", m.waveform)
-		b.WriteString(RenderBoxLayout(w, rightLines))
+		if dur > 0 {
+			stats = append(stats, DimStyle.Render("Duration: ")+formatters.FormatDuration(dur))
+		}
+		if len(m.audioData) > 0 {
+			stats = append(stats, DimStyle.Render("Size: ")+formatters.FormatBytes(len(m.audioData)))
+		}
+		statsLine := strings.Join(stats, DimStyle.Render(" | "))
+		b.WriteString(RenderMinimalView("Rime Play", m.waveform, m.transcript, "", m.termWidth, labels, statsLine))
 	}
 
 	return b.String()

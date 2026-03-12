@@ -1,15 +1,15 @@
 package visualizer
 
 import (
-	"os"
+	"math"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"golang.org/x/term"
 )
 
 const (
-	minWidth  = 48
+	minWidth  = 16
+	maxWidth  = 36
 	growChunk = 8
 	lookAhead = 8
 )
@@ -24,28 +24,44 @@ type Waveform struct {
 	samples      []float64
 	maxSamples   int
 	displayWidth int
-	playhead     int // sample index of current playback position
+	columnWidth  int  // if > 0, target terminal column width for two-row rendering (2 samples per column)
+	playhead     int  // sample index of current playback position
+	progressMode bool // true once SetProgress has been called; enables bright/dim split in RenderSingle
 
 	cachedTop         string
 	cachedBot         string
+	cachedSingle      string
 	cachedPlayhead    int
 	cachedSampleCount int
 }
 
-// NewWaveform creates a waveform buffer sized to terminal width.
-func NewWaveform() *Waveform {
-	return NewWaveformWithWidth(getTerminalWidth())
-}
-
-// NewWaveformWithWidth creates a waveform buffer sized to the given width.
-func NewWaveformWithWidth(width int) *Waveform {
+// NewWaveform creates a waveform buffer sized to the given width.
+// Width is clamped between minWidth and maxWidth.
+func NewWaveform(width int) *Waveform {
+	if width > maxWidth {
+		width = maxWidth
+	}
 	if width < minWidth {
 		width = minWidth
 	}
 	return &Waveform{
 		samples:      make([]float64, 0),
-		maxSamples:   width * 2,
+		maxSamples:   width,
 		displayWidth: width,
+		playhead:     0,
+	}
+}
+
+// NewWaveformTwoRow creates a waveform for two-row braille rendering.
+func NewWaveformTwoRow(columns int) *Waveform {
+	if columns < minWidth {
+		columns = minWidth
+	}
+	return &Waveform{
+		samples:      make([]float64, 0),
+		maxSamples:   columns * 2,
+		displayWidth: columns * 2,
+		columnWidth:  columns,
 		playhead:     0,
 	}
 }
@@ -57,15 +73,21 @@ func (w *Waveform) SetSamples(samples []float64) {
 	}
 	w.samples = samples
 	w.playhead = 0
+	w.progressMode = false
 	w.invalidateCache()
 
-	charCount := (len(w.samples) + 1) / 2
-	if charCount > w.displayWidth {
-		w.displayWidth = charCount
+	charCount := len(w.samples)
+	if charCount > w.displayWidth && w.displayWidth < w.maxSamples {
+		newWidth := charCount
+		if newWidth > w.maxSamples {
+			newWidth = w.maxSamples
+		}
+		w.displayWidth = newWidth
 	}
 }
 
-// SetProgress sets playhead based on progress (0.0-1.0).
+// SetProgress sets playhead based on progress (0.0-1.0) and enables the animated
+// bright/dim split in RenderSingle.
 func (w *Waveform) SetProgress(progress float64) {
 	if progress < 0 {
 		progress = 0
@@ -73,6 +95,7 @@ func (w *Waveform) SetProgress(progress float64) {
 	if progress > 1 {
 		progress = 1
 	}
+	w.progressMode = true
 	newPlayhead := int(progress * float64(len(w.samples)))
 	if newPlayhead != w.playhead {
 		w.playhead = newPlayhead
@@ -102,6 +125,18 @@ func (w *Waveform) RenderBot() string {
 	return w.cachedBot
 }
 
+// RenderSingle returns a single-row waveform using sqrt amplitude scaling.
+// When SetProgress has been called, played samples render bright and upcoming samples dim.
+func (w *Waveform) RenderSingle() string {
+	if w.cachedSingle != "" && w.isCacheValid() {
+		return w.cachedSingle
+	}
+	w.cachedSingle = w.renderSingleLine(math.Sqrt)
+	w.cachedPlayhead = w.playhead
+	w.cachedSampleCount = len(w.samples)
+	return w.cachedSingle
+}
+
 // Width returns the display width of the waveform in terminal columns.
 func (w *Waveform) Width() int {
 	return w.displayWidth
@@ -117,40 +152,85 @@ func (w *Waveform) renderRowWithPlayhead(charFunc func(int, int) rune) string {
 	b.Grow(charCount * 8)
 
 	var brightChunk strings.Builder
-	var dimChunk strings.Builder
 
 	for i := 0; i < len(w.samples); i += 2 {
-		left := QuantizeAmplitude(w.samples[i])
+		left := QuantizeAmplitudeSqrt(w.samples[i])
 		right := 0
 		if i+1 < len(w.samples) {
-			right = QuantizeAmplitude(w.samples[i+1])
+			right = QuantizeAmplitudeSqrt(w.samples[i+1])
 		}
 		ch := string(charFunc(left, right))
-
-		if i < w.playhead {
-			if dimChunk.Len() > 0 {
-				b.WriteString(dimStyle.Render(dimChunk.String()))
-				dimChunk.Reset()
-			}
-			brightChunk.WriteString(ch)
-		} else {
-			if brightChunk.Len() > 0 {
-				b.WriteString(brightStyle.Render(brightChunk.String()))
-				brightChunk.Reset()
-			}
-			dimChunk.WriteString(ch)
-		}
+		brightChunk.WriteString(ch)
 	}
 
 	if brightChunk.Len() > 0 {
 		b.WriteString(brightStyle.Render(brightChunk.String()))
 	}
-	if dimChunk.Len() > 0 {
-		b.WriteString(dimStyle.Render(dimChunk.String()))
+
+	targetCols := w.displayWidth
+	if w.columnWidth > 0 {
+		targetCols = w.columnWidth
+	}
+	if charCount < targetCols {
+		padding := strings.Repeat("⠀", targetCols-charCount)
+		b.WriteString(dimStyle.Render(padding))
 	}
 
+	return b.String()
+}
+
+func (w *Waveform) renderSingleLine(transform func(float64) float64) string {
+	if len(w.samples) == 0 {
+		return ""
+	}
+
+	charCount := len(w.samples)
+	var b strings.Builder
+	b.Grow(charCount * 4)
+
+	var brightChunk strings.Builder
+	var dimChunk strings.Builder
+
+	flushBright := func() {
+		if brightChunk.Len() > 0 {
+			b.WriteString(brightStyle.Render(brightChunk.String()))
+			brightChunk.Reset()
+		}
+	}
+	flushDim := func() {
+		if dimChunk.Len() > 0 {
+			b.WriteString(dimStyle.Render(dimChunk.String()))
+			dimChunk.Reset()
+		}
+	}
+
+	for i := 0; i < len(w.samples); i++ {
+		v := transform(w.samples[i])
+		var level int
+		switch {
+		case v < 0.15:
+			level = 0
+		case v < 0.4:
+			level = 1
+		case v < 0.5:
+			level = 2
+		default:
+			level = 3
+		}
+		ch := string(SingleLineChar(level))
+		if w.progressMode && i >= w.playhead {
+			flushBright()
+			dimChunk.WriteString(ch)
+		} else {
+			flushDim()
+			brightChunk.WriteString(ch)
+		}
+	}
+	flushBright()
+	flushDim()
+
 	if charCount < w.displayWidth {
-		padding := strings.Repeat("⠀", w.displayWidth-charCount)
+		padding := strings.Repeat(" ", w.displayWidth-charCount)
 		b.WriteString(dimStyle.Render(padding))
 	}
 
@@ -160,6 +240,7 @@ func (w *Waveform) renderRowWithPlayhead(charFunc func(int, int) rune) string {
 func (w *Waveform) invalidateCache() {
 	w.cachedTop = ""
 	w.cachedBot = ""
+	w.cachedSingle = ""
 }
 
 func (w *Waveform) isCacheValid() bool {
@@ -173,15 +254,14 @@ func (w *Waveform) AddSample(amp float64) {
 		if w.playhead > 0 {
 			w.playhead--
 		}
-		w.invalidateCache()
 	}
 	w.samples = append(w.samples, amp)
 	w.invalidateCache()
 
-	contentChars := (len(w.samples) + 1) / 2
-	maxWidth := w.maxSamples / 2
+	contentChars := len(w.samples)
+	maxWidth := w.maxSamples
 
-	neededWidth := contentChars + (lookAhead+1)/2
+	neededWidth := contentChars + lookAhead
 	if neededWidth > w.displayWidth && w.displayWidth < maxWidth {
 		newWidth := w.displayWidth + growChunk
 		if newWidth > maxWidth {
@@ -190,12 +270,4 @@ func (w *Waveform) AddSample(amp float64) {
 		w.displayWidth = newWidth
 		w.invalidateCache()
 	}
-}
-
-func getTerminalWidth() int {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || width < 40 {
-		return 80
-	}
-	return width
 }
